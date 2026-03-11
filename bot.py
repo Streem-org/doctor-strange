@@ -19,6 +19,7 @@ TOKEN = os.getenv("TOKEN")
 CREATOR_ID = 1378768035187527795
 COUNTING_CHANNEL = 1477918309696667800
 ROLE_DROP_CHANNEL = 1469526304738119940
+STAFF_EVIDENCE_CHANNEL = 1481206250623598725
 
 TIME_FILE = "times.json"
 
@@ -34,11 +35,14 @@ last_counter = None
 
 blacklisted_users = set()
 
+duos = {}
+
 eightball_responses = [
-    "Yes","No","Maybe","Definitely",
-    "Absolutely not","Ask again later",
-    "Probably","I don't think so",
-    "Without a doubt","Very likely"
+"Yes","No","Streem loves his hg ask later",
+"Ronlx wants penalty reply later",
+"Absolutely not","Ask again later",
+"Probably","I don't think so",
+"Without a doubt","Very likely"
 ]
 
 # ---------------- BOT ---------------- #
@@ -48,9 +52,9 @@ intents.message_content = True
 intents.members = True
 
 bot = commands.Bot(
-    command_prefix=".",
-    intents=intents,
-    help_command=None
+command_prefix=".",
+intents=intents,
+help_command=None
 )
 
 # ---------------- FILE ---------------- #
@@ -96,8 +100,6 @@ def magic_embed(ctx,title,question=None,answer=None):
 @bot.event
 async def on_ready():
 
-    await bot.tree.sync()
-
     print(f"Bot online as {bot.user}")
 
 @bot.event
@@ -113,9 +115,7 @@ async def on_message(message):
 
     weekly_messages[message.author.id]+=1
 
-    # AFK REMOVE
     if message.author.id in afk_users:
-
         del afk_users[message.author.id]
 
         embed = discord.Embed(
@@ -125,7 +125,6 @@ async def on_message(message):
 
         await message.channel.send(embed=embed)
 
-    # AFK MENTION
     for user in message.mentions:
 
         if user.id in afk_users:
@@ -138,7 +137,6 @@ async def on_message(message):
 
             await message.channel.send(embed=embed)
 
-    # COUNTING
     if message.channel.id == COUNTING_CHANNEL:
 
         try:
@@ -160,44 +158,17 @@ async def on_message(message):
 
     await bot.process_commands(message)
 
-# ---------------- MODERATION ---------------- #
-
-@bot.command()
-async def blacklist(ctx,user:discord.Member):
-
-    if ctx.author.id != CREATOR_ID:
-        return
-
-    blacklisted_users.add(user.id)
-
-    embed = magic_embed(ctx,"Blacklist","User Added",user.mention)
-
-    await ctx.send(embed=embed)
-
-@bot.command()
-async def unblacklist(ctx,user:discord.Member):
-
-    if ctx.author.id != CREATOR_ID:
-        return
-
-    blacklisted_users.discard(user.id)
-
-    embed = magic_embed(ctx,"Blacklist","User Removed",user.mention)
-
-    await ctx.send(embed=embed)
-
-# ---------------- AFK ---------------- #
-
-@bot.command()
-async def afk(ctx,*,reason="AFK"):
-
-    afk_users[ctx.author.id]=reason
-
-    embed = magic_embed(ctx,"AFK Status","Reason",reason)
-
-    await ctx.send(embed=embed)
-
 # ---------------- UTILITY ---------------- #
+
+@bot.command()
+async def uptime(ctx):
+
+    seconds=int(time.time()-start_time)
+    uptime=str(timedelta(seconds=seconds))
+
+    embed = magic_embed(ctx,"Bot Uptime","Running Time",uptime)
+
+    await ctx.send(embed=embed)
 
 @bot.command()
 async def avatar(ctx,member:discord.Member=None):
@@ -205,36 +176,7 @@ async def avatar(ctx,member:discord.Member=None):
     member = member or ctx.author
 
     embed = magic_embed(ctx,"Avatar",member.mention)
-
     embed.set_image(url=member.display_avatar.url)
-
-    await ctx.send(embed=embed)
-
-@bot.command()
-async def serverinfo(ctx):
-
-    guild = ctx.guild
-
-    embed = discord.Embed(
-        title="Server Info",
-        color=discord.Color.blurple()
-    )
-
-    embed.add_field(name="Name",value=guild.name)
-    embed.add_field(name="Members",value=guild.member_count)
-    embed.add_field(name="Owner",value=guild.owner)
-    embed.add_field(name="Created",value=guild.created_at.date())
-
-    await ctx.send(embed=embed)
-
-@bot.command()
-async def uptime(ctx):
-
-    seconds=int(time.time()-start_time)
-
-    uptime=str(timedelta(seconds=seconds))
-
-    embed = magic_embed(ctx,"Bot Uptime","Running Time",uptime)
 
     await ctx.send(embed=embed)
 
@@ -249,163 +191,6 @@ async def eightball(ctx,*,question):
 
     await ctx.send(embed=embed)
 
-@bot.command()
-async def choose(ctx,*,options):
-
-    choices=[o.strip() for o in options.split(",")]
-
-    result=random.choice(choices)
-
-    embed = magic_embed(ctx,"Choice Picker",options,result)
-
-    await ctx.send(embed=embed)
-
-@bot.command()
-async def match(ctx,user1:discord.Member,user2:discord.Member):
-
-    percent=random.randint(1,100)
-
-    embed = magic_embed(
-        ctx,
-        "Compatibility Match",
-        f"{user1.name} ❤️ {user2.name}",
-        f"{percent}%"
-    )
-
-    await ctx.send(embed=embed)
-
-# ---------------- WEEKLY ---------------- #
-
-@bot.command()
-async def weekly(ctx):
-
-    top=sorted(
-        weekly_messages.items(),
-        key=lambda x:x[1],
-        reverse=True
-    )[:10]
-
-    embed=discord.Embed(
-        title="Weekly Messages",
-        color=discord.Color.blurple()
-    )
-
-    for uid,count in top:
-
-        member=ctx.guild.get_member(uid)
-
-        if member:
-
-            embed.add_field(
-                name=member.name,
-                value=f"{count} messages",
-                inline=False
-            )
-
-    await ctx.send(embed=embed)
-
-# ---------------- ROLE DROP ---------------- #
-
-@bot.command()
-async def roledrop(ctx):
-
-    if ctx.author.id!=CREATOR_ID:
-        return
-
-    if ctx.channel.id!=ROLE_DROP_CHANNEL:
-        return
-
-    role_name=random.choice(["Cristiano Glazer","Messi Glazer"])
-
-    embed=magic_embed(
-        ctx,
-        "Role Drop",
-        "First to reply gets",
-        role_name
-    )
-
-    msg=await ctx.send(embed=embed)
-
-    def check(m):
-        return m.reference and m.reference.message_id==msg.id
-
-    try:
-        reply=await bot.wait_for("message",timeout=60,check=check)
-    except:
-        await ctx.send("No one claimed the role.")
-        return
-
-    role=discord.utils.get(ctx.guild.roles,name=role_name)
-
-    if role:
-
-        await reply.author.add_roles(role)
-
-        win=magic_embed(ctx,"Winner","User",reply.author.mention)
-
-        await ctx.send(embed=win)
-
-# ---------------- TIME ---------------- #
-
-@bot.group(invoke_without_command=True)
-async def time(ctx,member:discord.Member=None):
-
-    data=load_times()
-
-    member = member or ctx.author
-
-    tz=data.get(str(member.id))
-
-    if not tz:
-
-        if member==ctx.author:
-            await ctx.send("Set your timezone with `.time set <zone>`")
-        else:
-            await ctx.send(f"{member.display_name} has not set a timezone.")
-
-        return
-
-    now=datetime.datetime.now(
-        pytz.timezone(tz)
-    ).strftime("%I:%M %p")
-
-    embed=magic_embed(
-        ctx,
-        f"Time for {member.display_name}",
-        now,
-        tz
-    )
-
-    await ctx.send(embed=embed)
-
-@time.command()
-async def set(ctx,timezone:str):
-
-    try:
-        pytz.timezone(timezone)
-    except:
-        await ctx.send("Invalid timezone.")
-        return
-
-    data=load_times()
-
-    data[str(ctx.author.id)]=timezone
-
-    save_times(data)
-
-    await ctx.send(f"Timezone set to **{timezone}**")
-
-@time.command()
-async def remove(ctx):
-
-    data=load_times()
-
-    data.pop(str(ctx.author.id),None)
-
-    save_times(data)
-
-    await ctx.send("Timezone removed.")
-
 # ---------------- SHUTDOWN ---------------- #
 
 @bot.command()
@@ -415,48 +200,146 @@ async def shutdown(ctx):
         return
 
     await ctx.send("Shutting down... 👋🏼")
-
     await bot.close()
 
-# ---------------- HELP ---------------- #
+# ---------------- TIME ---------------- #
 
 @bot.command()
-async def help(ctx):
+async def time(ctx):
 
-    embed=discord.Embed(
-        title="Utility Bot",
-        description="Prefix: `.`",
+    data = load_times()
+    tz = data.get(str(ctx.author.id))
+
+    if not tz:
+        await ctx.send("Set timezone using `.timeset <zone>`")
+        return
+
+    now = datetime.datetime.now(
+        pytz.timezone(tz)
+    ).strftime("%I:%M %p")
+
+    embed = magic_embed(ctx,"Your Time",now,tz)
+
+    await ctx.send(embed=embed)
+
+# ---------------- EVIDENCE ---------------- #
+
+@bot.group()
+async def ev(ctx):
+    if ctx.invoked_subcommand is None:
+        await ctx.message.delete()
+
+@ev.command()
+async def p(ctx):
+
+    if not ctx.message.reference:
+        await ctx.message.delete()
+        return
+
+    ref = ctx.message.reference
+    msg = await ctx.channel.fetch_message(ref.message_id)
+
+    staff_channel = bot.get_channel(STAFF_EVIDENCE_CHANNEL)
+
+    embed = discord.Embed(
+        description=f"**{msg.author.display_name} said:**\n\n{msg.content}",
+        color=discord.Color.dark_theme()
+    )
+
+    embed.add_field(
+        name="Message ID",
+        value=msg.id
+    )
+
+    files = []
+    for attachment in msg.attachments:
+        files.append(await attachment.to_file())
+
+    await staff_channel.send(embed=embed,files=files)
+
+    await ctx.message.delete()
+
+# ---------------- MATCH SYSTEM ---------------- #
+
+class MatchView(discord.ui.View):
+
+    def __init__(self, requester, target):
+        super().__init__(timeout=60)
+        self.requester = requester
+        self.target = target
+
+    @discord.ui.button(label="Accept",style=discord.ButtonStyle.green)
+    async def accept(self,interaction:discord.Interaction,button:discord.ui.Button):
+
+        if interaction.user != self.target:
+            await interaction.response.send_message(
+                "Not your request.",ephemeral=True)
+            return
+
+        duos[self.requester.id]=self.target.id
+        duos[self.target.id]=self.requester.id
+
+        embed=discord.Embed(
+            title="Duo Created",
+            description=f"{self.requester.mention} 🤝 {self.target.mention}",
+            color=discord.Color.green()
+        )
+
+        await interaction.response.edit_message(embed=embed,view=None)
+
+    @discord.ui.button(label="Decline",style=discord.ButtonStyle.red)
+    async def decline(self,interaction:discord.Interaction,button:discord.ui.Button):
+
+        if interaction.user != self.target:
+            await interaction.response.send_message(
+                "Not your request.",ephemeral=True)
+            return
+
+        await interaction.response.edit_message(
+            content="Duo request declined.",
+            view=None
+        )
+
+@bot.command()
+async def match(ctx,member:discord.Member):
+
+    if member.bot:
+        await ctx.send("You can't duo with bots.")
+        return
+
+    if member==ctx.author:
+        await ctx.send("You can't duo yourself.")
+        return
+
+    if ctx.author.id in duos:
+        await ctx.send("You already have a duo.")
+        return
+
+    if member.id in duos:
+        await ctx.send("That user already has a duo.")
+        return
+
+    view = MatchView(ctx.author,member)
+
+    await ctx.send(
+        f"{member.mention}, **{ctx.author.display_name}** wants to duo with you!",
+        view=view
+    )
+
+@bot.command()
+async def us(ctx):
+
+    if ctx.author.id not in duos:
+        await ctx.send("You don't have a duo yet.")
+        return
+
+    partner_id = duos[ctx.author.id]
+    partner = ctx.guild.get_member(partner_id)
+
+    embed = discord.Embed(
+        title="Your Duo",
+        description=f"{ctx.author.mention} 🤝 {partner.mention}",
         color=discord.Color.blurple()
-    )
-
-    embed.add_field(
-        name="Utility",
-        value="`.avatar` `.serverinfo` `.uptime`",
-        inline=False
-    )
-
-    embed.add_field(
-        name="Fun",
-        value="`.8ball` `.choose` `.match`",
-        inline=False
-    )
-
-    embed.add_field(
-        name="Tracking",
-        value="`.weekly`",
-        inline=False
-    )
-
-    embed.add_field(
-        name="Time",
-        value="`.time` `.time set` `.time remove`",
-        inline=False
-    )
-
-    embed.add_field(
-        name="Moderation",
-        value="`.blacklist` `.unblacklist`",
-        inline=False
     )
 
     await ctx.send(embed=embed)
