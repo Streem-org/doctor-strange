@@ -52,9 +52,9 @@ intents.message_content = True
 intents.members = True
 
 bot = commands.Bot(
-command_prefix=".",
-intents=intents,
-help_command=None
+    command_prefix=".",
+    intents=intents,
+    help_command=None
 )
 
 # ---------------- FILE ---------------- #
@@ -99,7 +99,6 @@ def magic_embed(ctx,title,question=None,answer=None):
 
 @bot.event
 async def on_ready():
-
     print(f"Bot online as {bot.user}")
 
 @bot.event
@@ -116,6 +115,7 @@ async def on_message(message):
     weekly_messages[message.author.id]+=1
 
     if message.author.id in afk_users:
+
         del afk_users[message.author.id]
 
         embed = discord.Embed(
@@ -158,6 +158,49 @@ async def on_message(message):
 
     await bot.process_commands(message)
 
+# ---------------- HELP ---------------- #
+
+@bot.command()
+async def help(ctx):
+
+    embed = discord.Embed(
+        title="Bot Commands",
+        description="Prefix: `.`",
+        color=discord.Color.blurple()
+    )
+
+    embed.add_field(
+        name="Utility",
+        value="`.avatar`\n`.uptime`\n`.time`",
+        inline=False
+    )
+
+    embed.add_field(
+        name="Fun",
+        value="`.8ball`\n`.ship`",
+        inline=False
+    )
+
+    embed.add_field(
+        name="Duo",
+        value="`.match @user`\n`.us`",
+        inline=False
+    )
+
+    embed.add_field(
+        name="Moderation",
+        value="`.blacklist`\n`.unblacklist`\n`.ev p`",
+        inline=False
+    )
+
+    embed.add_field(
+        name="Owner",
+        value="`.shutdown`",
+        inline=False
+    )
+
+    await ctx.send(embed=embed)
+
 # ---------------- UTILITY ---------------- #
 
 @bot.command()
@@ -176,6 +219,7 @@ async def avatar(ctx,member:discord.Member=None):
     member = member or ctx.author
 
     embed = magic_embed(ctx,"Avatar",member.mention)
+
     embed.set_image(url=member.display_avatar.url)
 
     await ctx.send(embed=embed)
@@ -191,17 +235,6 @@ async def eightball(ctx,*,question):
 
     await ctx.send(embed=embed)
 
-# ---------------- SHUTDOWN ---------------- #
-
-@bot.command()
-async def shutdown(ctx):
-
-    if ctx.author.id!=CREATOR_ID:
-        return
-
-    await ctx.send("Shutting down... 👋🏼")
-    await bot.close()
-
 # ---------------- TIME ---------------- #
 
 @bot.command()
@@ -214,13 +247,25 @@ async def time(ctx):
         await ctx.send("Set timezone using `.timeset <zone>`")
         return
 
-    now = datetime.datetime.now(
+    now=datetime.datetime.now(
         pytz.timezone(tz)
     ).strftime("%I:%M %p")
 
-    embed = magic_embed(ctx,"Your Time",now,tz)
+    embed=magic_embed(ctx,"Your Time",now,tz)
 
     await ctx.send(embed=embed)
+
+# ---------------- SHUTDOWN ---------------- #
+
+@bot.command()
+async def shutdown(ctx):
+
+    if ctx.author.id!=CREATOR_ID:
+        return
+
+    await ctx.send("Shutting down... 👋🏼")
+
+    await bot.close()
 
 # ---------------- EVIDENCE ---------------- #
 
@@ -246,12 +291,7 @@ async def p(ctx):
         color=discord.Color.dark_theme()
     )
 
-    embed.add_field(
-        name="Message ID",
-        value=msg.id
-    )
-
-    files = []
+    files=[]
     for attachment in msg.attachments:
         files.append(await attachment.to_file())
 
@@ -265,13 +305,13 @@ class MatchView(discord.ui.View):
 
     def __init__(self, requester, target):
         super().__init__(timeout=60)
-        self.requester = requester
-        self.target = target
+        self.requester=requester
+        self.target=target
 
     @discord.ui.button(label="Accept",style=discord.ButtonStyle.green)
     async def accept(self,interaction:discord.Interaction,button:discord.ui.Button):
 
-        if interaction.user != self.target:
+        if interaction.user!=self.target:
             await interaction.response.send_message(
                 "Not your request.",ephemeral=True)
             return
@@ -290,7 +330,7 @@ class MatchView(discord.ui.View):
     @discord.ui.button(label="Decline",style=discord.ButtonStyle.red)
     async def decline(self,interaction:discord.Interaction,button:discord.ui.Button):
 
-        if interaction.user != self.target:
+        if interaction.user!=self.target:
             await interaction.response.send_message(
                 "Not your request.",ephemeral=True)
             return
@@ -319,7 +359,7 @@ async def match(ctx,member:discord.Member):
         await ctx.send("That user already has a duo.")
         return
 
-    view = MatchView(ctx.author,member)
+    view=MatchView(ctx.author,member)
 
     await ctx.send(
         f"{member.mention}, **{ctx.author.display_name}** wants to duo with you!",
@@ -333,10 +373,10 @@ async def us(ctx):
         await ctx.send("You don't have a duo yet.")
         return
 
-    partner_id = duos[ctx.author.id]
-    partner = ctx.guild.get_member(partner_id)
+    partner_id=duos[ctx.author.id]
+    partner=ctx.guild.get_member(partner_id)
 
-    embed = discord.Embed(
+    embed=discord.Embed(
         title="Your Duo",
         description=f"{ctx.author.mention} 🤝 {partner.mention}",
         color=discord.Color.blurple()
