@@ -11,7 +11,6 @@ from discord.ext import commands
 from dotenv import load_dotenv
 import pytz
 
-
 # ---------------- ENV ---------------- #
 
 load_dotenv()
@@ -22,7 +21,6 @@ COUNTING_CHANNEL = 1477918309696667800
 ROLE_DROP_CHANNEL = 1469526304738119940
 
 TIME_FILE = "times.json"
-
 
 # ---------------- DATA ---------------- #
 
@@ -37,14 +35,13 @@ last_counter = None
 blacklisted_users = set()
 
 eightball_responses = [
-    "Yes", "No", "Maybe", "Definitely",
-    "Absolutely not", "Ask again later",
-    "Probably", "I don't think so",
-    "Without a doubt", "Very likely"
+    "Yes","No","Maybe","Definitely",
+    "Absolutely not","Ask again later",
+    "Probably","I don't think so",
+    "Without a doubt","Very likely"
 ]
 
-
-# ---------------- BOT SETUP ---------------- #
+# ---------------- BOT ---------------- #
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -56,26 +53,23 @@ bot = commands.Bot(
     help_command=None
 )
 
-
-# ---------------- FILE SETUP ---------------- #
+# ---------------- FILE ---------------- #
 
 if not os.path.exists(TIME_FILE):
-    with open(TIME_FILE, "w") as f:
-        json.dump({}, f)
-
+    with open(TIME_FILE,"w") as f:
+        json.dump({},f)
 
 def load_times():
-    with open(TIME_FILE, "r") as f:
+    with open(TIME_FILE,"r") as f:
         return json.load(f)
 
-
 def save_times(data):
-    with open(TIME_FILE, "w") as f:
-        json.dump(data, f, indent=4)
+    with open(TIME_FILE,"w") as f:
+        json.dump(data,f,indent=4)
 
+# ---------------- EMBED ---------------- #
 
-# ---------------- EMBED STYLE ---------------- #
-def magic_embed(ctx, title, question=None, answer=None):
+def magic_embed(ctx,title,question=None,answer=None):
 
     embed = discord.Embed(
         title=title,
@@ -83,15 +77,19 @@ def magic_embed(ctx, title, question=None, answer=None):
     )
 
     if question:
-        embed.add_field(name="Info", value=question, inline=False)
+        embed.add_field(name="Info",value=question,inline=False)
 
     if answer:
-        embed.add_field(name="Result", value=answer, inline=False)
+        embed.add_field(name="Result",value=answer,inline=False)
 
-    embed.set_footer(text=ctx.guild.name)
+    embed.set_footer(
+        text=ctx.guild.name,
+        icon_url=ctx.guild.icon.url if ctx.guild.icon else None
+    )
+
+    embed.set_thumbnail(url=ctx.bot.user.display_avatar.url)
 
     return embed
-
 
 # ---------------- EVENTS ---------------- #
 
@@ -102,11 +100,10 @@ async def on_ready():
 
     print(f"Bot online as {bot.user}")
 
-
 @bot.event
 async def on_message(message):
 
-    global count_number, last_counter
+    global count_number,last_counter
 
     if message.author.bot:
         return
@@ -114,15 +111,16 @@ async def on_message(message):
     if message.author.id in blacklisted_users:
         return
 
-    weekly_messages[message.author.id] += 1
+    weekly_messages[message.author.id]+=1
 
     # AFK REMOVE
     if message.author.id in afk_users:
+
         del afk_users[message.author.id]
 
-        embed = magic_embed(
-            "AFK Removed",
-            f"{message.author.mention} is no longer AFK"
+        embed = discord.Embed(
+            description=f"{message.author.mention} is no longer AFK",
+            color=discord.Color.blurple()
         )
 
         await message.channel.send(embed=embed)
@@ -132,15 +130,15 @@ async def on_message(message):
 
         if user.id in afk_users:
 
-            embed = magic_embed(
-                "AFK User",
-                user.name,
-                afk_users[user.id]
+            embed = discord.Embed(
+                title="AFK User",
+                description=afk_users[user.id],
+                color=discord.Color.blurple()
             )
 
             await message.channel.send(embed=embed)
 
-    # COUNTING SYSTEM
+    # COUNTING
     if message.channel.id == COUNTING_CHANNEL:
 
         try:
@@ -162,58 +160,57 @@ async def on_message(message):
 
     await bot.process_commands(message)
 
-
 # ---------------- MODERATION ---------------- #
 
-@bot.hybrid_command()
-async def blacklist(ctx, user: discord.Member):
+@bot.command()
+async def blacklist(ctx,user:discord.Member):
 
     if ctx.author.id != CREATOR_ID:
         return
 
     blacklisted_users.add(user.id)
 
-    embed = magic_embed("Blacklist", "User Added", user.mention)
+    embed = magic_embed(ctx,"Blacklist","User Added",user.mention)
+
     await ctx.send(embed=embed)
 
-
-@bot.hybrid_command()
-async def unblacklist(ctx, user: discord.Member):
+@bot.command()
+async def unblacklist(ctx,user:discord.Member):
 
     if ctx.author.id != CREATOR_ID:
         return
 
     blacklisted_users.discard(user.id)
 
-    embed = magic_embed("Blacklist", "User Removed", user.mention)
-    await ctx.send(embed=embed)
+    embed = magic_embed(ctx,"Blacklist","User Removed",user.mention)
 
+    await ctx.send(embed=embed)
 
 # ---------------- AFK ---------------- #
 
-@bot.hybrid_command()
-async def afk(ctx, *, reason="AFK"):
+@bot.command()
+async def afk(ctx,*,reason="AFK"):
 
-    afk_users[ctx.author.id] = reason
+    afk_users[ctx.author.id]=reason
 
-    embed = magic_embed("AFK Status", "Reason", reason)
+    embed = magic_embed(ctx,"AFK Status","Reason",reason)
+
     await ctx.send(embed=embed)
-
 
 # ---------------- UTILITY ---------------- #
 
-@bot.hybrid_command()
-async def avatar(ctx, member: discord.Member = None):
+@bot.command()
+async def avatar(ctx,member:discord.Member=None):
 
     member = member or ctx.author
 
-    embed = magic_embed("Avatar", member.mention)
+    embed = magic_embed(ctx,"Avatar",member.mention)
+
     embed.set_image(url=member.display_avatar.url)
 
     await ctx.send(embed=embed)
 
-
-@bot.hybrid_command()
+@bot.command()
 async def serverinfo(ctx):
 
     guild = ctx.guild
@@ -223,56 +220,53 @@ async def serverinfo(ctx):
         color=discord.Color.blurple()
     )
 
-    embed.add_field(name="Name", value=guild.name)
-    embed.add_field(name="Members", value=guild.member_count)
-    embed.add_field(name="Owner", value=guild.owner)
-    embed.add_field(name="Created", value=guild.created_at.date())
-
-    embed.set_thumbnail(url=guild.icon.url if guild.icon else None)
+    embed.add_field(name="Name",value=guild.name)
+    embed.add_field(name="Members",value=guild.member_count)
+    embed.add_field(name="Owner",value=guild.owner)
+    embed.add_field(name="Created",value=guild.created_at.date())
 
     await ctx.send(embed=embed)
 
-
-@bot.hybrid_command()
+@bot.command()
 async def uptime(ctx):
 
-    seconds = int(time.time() - start_time)
-    uptime = str(timedelta(seconds=seconds))
+    seconds=int(time.time()-start_time)
 
-    embed = magic_embed("Bot Uptime", "Running Time", uptime)
+    uptime=str(timedelta(seconds=seconds))
+
+    embed = magic_embed(ctx,"Bot Uptime","Running Time",uptime)
 
     await ctx.send(embed=embed)
-
 
 # ---------------- FUN ---------------- #
 
-@bot.hybrid_command(name="8ball")
-async def eightball(ctx, *, question):
+@bot.command(name="8ball")
+async def eightball(ctx,*,question):
 
-    reply = random.choice(eightball_responses)
+    reply=random.choice(eightball_responses)
 
-    embed = magic_embed("Magic 8Ball", question, reply)
-
-    await ctx.send(embed=embed)
-
-
-@bot.hybrid_command()
-async def choose(ctx, *, options):
-
-    choices = [o.strip() for o in options.split(",")]
-    result = random.choice(choices)
-
-    embed = magic_embed("Choice Picker", options, result)
+    embed = magic_embed(ctx,"Magic 8ball",question,reply)
 
     await ctx.send(embed=embed)
 
+@bot.command()
+async def choose(ctx,*,options):
 
-@bot.hybrid_command()
-async def match(ctx, user1: discord.Member, user2: discord.Member):
+    choices=[o.strip() for o in options.split(",")]
 
-    percent = random.randint(1, 100)
+    result=random.choice(choices)
+
+    embed = magic_embed(ctx,"Choice Picker",options,result)
+
+    await ctx.send(embed=embed)
+
+@bot.command()
+async def match(ctx,user1:discord.Member,user2:discord.Member):
+
+    percent=random.randint(1,100)
 
     embed = magic_embed(
+        ctx,
         "Compatibility Match",
         f"{user1.name} ❤️ {user2.name}",
         f"{percent}%"
@@ -280,28 +274,28 @@ async def match(ctx, user1: discord.Member, user2: discord.Member):
 
     await ctx.send(embed=embed)
 
-
 # ---------------- WEEKLY ---------------- #
 
-@bot.hybrid_command()
+@bot.command()
 async def weekly(ctx):
 
-    top = sorted(
+    top=sorted(
         weekly_messages.items(),
-        key=lambda x: x[1],
+        key=lambda x:x[1],
         reverse=True
     )[:10]
 
-    embed = discord.Embed(
+    embed=discord.Embed(
         title="Weekly Messages",
         color=discord.Color.blurple()
     )
 
-    for uid, count in top:
+    for uid,count in top:
 
-        member = ctx.guild.get_member(uid)
+        member=ctx.guild.get_member(uid)
 
         if member:
+
             embed.add_field(
                 name=member.name,
                 value=f"{count} messages",
@@ -310,136 +304,162 @@ async def weekly(ctx):
 
     await ctx.send(embed=embed)
 
-
 # ---------------- ROLE DROP ---------------- #
 
-@bot.hybrid_command()
+@bot.command()
 async def roledrop(ctx):
 
-    if ctx.author.id != CREATOR_ID:
+    if ctx.author.id!=CREATOR_ID:
         return
 
-    if ctx.channel.id != ROLE_DROP_CHANNEL:
+    if ctx.channel.id!=ROLE_DROP_CHANNEL:
         return
 
-    role_name = random.choice(["Cristiano Glazer", "Messi Glazer"])
+    role_name=random.choice(["Cristiano Glazer","Messi Glazer"])
 
-    embed = magic_embed("Role Drop", "First to reply gets", role_name)
+    embed=magic_embed(
+        ctx,
+        "Role Drop",
+        "First to reply gets",
+        role_name
+    )
 
-    msg = await ctx.send(embed=embed)
+    msg=await ctx.send(embed=embed)
 
     def check(m):
-        return m.reference and m.reference.message_id == msg.id
+        return m.reference and m.reference.message_id==msg.id
 
     try:
-        reply = await bot.wait_for("message", timeout=60, check=check)
+        reply=await bot.wait_for("message",timeout=60,check=check)
     except:
         await ctx.send("No one claimed the role.")
         return
 
-    role = discord.utils.get(ctx.guild.roles, name=role_name)
+    role=discord.utils.get(ctx.guild.roles,name=role_name)
 
     if role:
+
         await reply.author.add_roles(role)
 
-        win = magic_embed("Winner", "User", reply.author.mention)
+        win=magic_embed(ctx,"Winner","User",reply.author.mention)
 
         await ctx.send(embed=win)
 
+# ---------------- TIME ---------------- #
 
-# ---------------- TIME SYSTEM ---------------- #
+@bot.group(invoke_without_command=True)
+async def time(ctx,member:discord.Member=None):
 
-@bot.hybrid_group(invoke_without_command=True)
-async def time(ctx, member: discord.Member = None):
+    data=load_times()
 
-    data = load_times()
-
-    # If no member is provided, show the author's time
     member = member or ctx.author
 
-    tz = data.get(str(member.id))
+    tz=data.get(str(member.id))
 
     if not tz:
-        if member == ctx.author:
-            await ctx.send("❌ You haven't set a timezone.\nUse `.time set <timezone>`")
+
+        if member==ctx.author:
+            await ctx.send("Set your timezone with `.time set <zone>`")
         else:
-            await ctx.send(f"❌ {member.display_name} hasn't set a timezone.")
+            await ctx.send(f"{member.display_name} has not set a timezone.")
+
         return
 
-    now = datetime.datetime.now(
+    now=datetime.datetime.now(
         pytz.timezone(tz)
-    ).strftime("%H:%M")
+    ).strftime("%I:%M %p")
 
-    embed = discord.Embed(
-        title=f"🕒 Time for {member.display_name}",
-        description=f"`{now}` • {tz}",
-        color=discord.Color.blurple()
+    embed=magic_embed(
+        ctx,
+        f"Time for {member.display_name}",
+        now,
+        tz
     )
 
     await ctx.send(embed=embed)
+
+@time.command()
+async def set(ctx,timezone:str):
+
+    try:
+        pytz.timezone(timezone)
+    except:
+        await ctx.send("Invalid timezone.")
+        return
+
+    data=load_times()
+
+    data[str(ctx.author.id)]=timezone
+
+    save_times(data)
+
+    await ctx.send(f"Timezone set to **{timezone}**")
+
+@time.command()
+async def remove(ctx):
+
+    data=load_times()
+
+    data.pop(str(ctx.author.id),None)
+
+    save_times(data)
+
+    await ctx.send("Timezone removed.")
+
+# ---------------- SHUTDOWN ---------------- #
+
+@bot.command()
+async def shutdown(ctx):
+
+    if ctx.author.id!=CREATOR_ID:
+        return
+
+    await ctx.send("Shutting down... 👋🏼")
+
+    await bot.close()
+
 # ---------------- HELP ---------------- #
 
-@bot.hybrid_command()
+@bot.command()
 async def help(ctx):
 
-    embed = discord.Embed(
-        title="Doctor Strange Utility Bot",
+    embed=discord.Embed(
+        title="Utility Bot",
         description="Prefix: `.`",
         color=discord.Color.blurple()
     )
 
     embed.add_field(
         name="Utility",
-        value="avatar • serverinfo • uptime",
+        value="`.avatar` `.serverinfo` `.uptime`",
         inline=False
     )
 
     embed.add_field(
         name="Fun",
-        value="8ball • choose • match",
+        value="`.8ball` `.choose` `.match`",
         inline=False
     )
 
     embed.add_field(
         name="Tracking",
-        value="weekly",
+        value="`.weekly`",
         inline=False
     )
 
     embed.add_field(
         name="Time",
-        value="time • time set • time remove",
+        value="`.time` `.time set` `.time remove`",
         inline=False
     )
 
     embed.add_field(
         name="Moderation",
-        value="blacklist • unblacklist",
+        value="`.blacklist` `.unblacklist`",
         inline=False
     )
 
-    embed.set_footer(text="/YILDIZ Bot")
-
     await ctx.send(embed=embed)
-
-
-    # ---------------- SHUTDOWN ---------------- #
-
-@bot.command()
-async def shutdown(ctx):
-
-    if ctx.author.id != CREATOR_ID:
-        return
-
-    embed = discord.Embed(
-        description="Shutting down... 👋🏼",
-        color=discord.Color.red()
-    )
-
-    await ctx.send(embed=embed)
-
-    await bot.close()
-
 
 # ---------------- RUN ---------------- #
 
