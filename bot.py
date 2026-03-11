@@ -75,8 +75,7 @@ def save_times(data):
 
 
 # ---------------- EMBED STYLE ---------------- #
-
-def magic_embed(title, question=None, answer=None):
+def magic_embed(ctx, title, question=None, answer=None):
 
     embed = discord.Embed(
         title=title,
@@ -89,8 +88,7 @@ def magic_embed(title, question=None, answer=None):
     if answer:
         embed.add_field(name="Result", value=answer, inline=False)
 
-    embed.set_footer(text="YILDIZ")
-    embed.set_thumbnail(url=bot.user.display_avatar.url)
+    embed.set_footer(text=ctx.guild.name)
 
     return embed
 
