@@ -18,7 +18,6 @@ TOKEN = os.getenv("TOKEN")
 
 CREATOR_ID = 1378768035187527795
 COUNTING_CHANNEL = 1477918309696667800
-ROLE_DROP_CHANNEL = 1469526304738119940
 STAFF_EVIDENCE_CHANNEL = 1481206250623598725
 
 TIME_FILE = "times.json"
@@ -38,11 +37,8 @@ blacklisted_users = set()
 duos = {}
 
 eightball_responses = [
-"Yes","No","Streem loves his hg ask later",
-"Ronlx wants penalty reply later",
-"Absolutely not","Ask again later",
-"Probably","I don't think so",
-"Without a doubt","Very likely"
+"Yes","No","Ask again later","Probably",
+"I don't think so","Without a doubt","Very likely"
 ]
 
 # ---------------- BOT ---------------- #
@@ -71,30 +67,6 @@ def save_times(data):
     with open(TIME_FILE,"w") as f:
         json.dump(data,f,indent=4)
 
-# ---------------- EMBED ---------------- #
-
-def magic_embed(ctx,title,question=None,answer=None):
-
-    embed = discord.Embed(
-        title=title,
-        color=discord.Color.blurple()
-    )
-
-    if question:
-        embed.add_field(name="Info",value=question,inline=False)
-
-    if answer:
-        embed.add_field(name="Result",value=answer,inline=False)
-
-    embed.set_footer(
-        text=ctx.guild.name,
-        icon_url=ctx.guild.icon.url if ctx.guild.icon else None
-    )
-
-    embed.set_thumbnail(url=ctx.bot.user.display_avatar.url)
-
-    return embed
-
 # ---------------- EVENTS ---------------- #
 
 @bot.event
@@ -109,34 +81,23 @@ async def on_message(message):
     if message.author.bot:
         return
 
-    if message.author.id in blacklisted_users:
-        return
-
     weekly_messages[message.author.id]+=1
 
+    # AFK REMOVE
     if message.author.id in afk_users:
-
         del afk_users[message.author.id]
-
-        embed = discord.Embed(
-            description=f"{message.author.mention} is no longer AFK",
-            color=discord.Color.blurple()
+        await message.channel.send(
+            f"{message.author.mention} is no longer AFK."
         )
 
-        await message.channel.send(embed=embed)
-
+    # AFK MENTION
     for user in message.mentions:
-
         if user.id in afk_users:
-
-            embed = discord.Embed(
-                title="AFK User",
-                description=afk_users[user.id],
-                color=discord.Color.blurple()
+            await message.channel.send(
+                f"{user.display_name} is AFK: {afk_users[user.id]}"
             )
 
-            await message.channel.send(embed=embed)
-
+    # COUNTING SYSTEM
     if message.channel.id == COUNTING_CHANNEL:
 
         try:
@@ -177,19 +138,19 @@ async def help(ctx):
 
     embed.add_field(
         name="Fun",
-        value="`.8ball`\n`.ship`",
+        value="`.8ball`",
         inline=False
     )
 
     embed.add_field(
-        name="Duo",
-        value="`.match @user`\n`.us`",
+        name="Duo System",
+        value="`.match @user`\n`.us`\n`.unmatch`",
         inline=False
     )
 
     embed.add_field(
         name="Moderation",
-        value="`.blacklist`\n`.unblacklist`\n`.ev p`",
+        value="`.ev p` (reply message)",
         inline=False
     )
 
@@ -209,7 +170,11 @@ async def uptime(ctx):
     seconds=int(time.time()-start_time)
     uptime=str(timedelta(seconds=seconds))
 
-    embed = magic_embed(ctx,"Bot Uptime","Running Time",uptime)
+    embed = discord.Embed(
+        title="Bot Uptime",
+        description=f"Running for **{uptime}**",
+        color=discord.Color.blurple()
+    )
 
     await ctx.send(embed=embed)
 
@@ -218,7 +183,10 @@ async def avatar(ctx,member:discord.Member=None):
 
     member = member or ctx.author
 
-    embed = magic_embed(ctx,"Avatar",member.mention)
+    embed = discord.Embed(
+        title=f"{member.name}'s Avatar",
+        color=discord.Color.blurple()
+    )
 
     embed.set_image(url=member.display_avatar.url)
 
@@ -231,7 +199,11 @@ async def eightball(ctx,*,question):
 
     reply=random.choice(eightball_responses)
 
-    embed = magic_embed(ctx,"Magic 8ball",question,reply)
+    embed = discord.Embed(
+        title="Magic 8ball",
+        description=f"**Question:** {question}\n**Answer:** {reply}",
+        color=discord.Color.blurple()
+    )
 
     await ctx.send(embed=embed)
 
@@ -244,16 +216,14 @@ async def time(ctx):
     tz = data.get(str(ctx.author.id))
 
     if not tz:
-        await ctx.send("Set timezone using `.timeset <zone>`")
+        await ctx.send("Set timezone with `.timeset <zone>`")
         return
 
     now=datetime.datetime.now(
         pytz.timezone(tz)
     ).strftime("%I:%M %p")
 
-    embed=magic_embed(ctx,"Your Time",now,tz)
-
-    await ctx.send(embed=embed)
+    await ctx.send(f"Your time: **{now}** ({tz})")
 
 # ---------------- SHUTDOWN ---------------- #
 
@@ -264,7 +234,6 @@ async def shutdown(ctx):
         return
 
     await ctx.send("Shutting down... 👋🏼")
-
     await bot.close()
 
 # ---------------- EVIDENCE ---------------- #
@@ -287,7 +256,7 @@ async def p(ctx):
     staff_channel = bot.get_channel(STAFF_EVIDENCE_CHANNEL)
 
     embed = discord.Embed(
-        description=f"**{msg.author.display_name} said:**\n\n{msg.content}",
+        description=f"**{msg.author}:**\n{msg.content}",
         color=discord.Color.dark_theme()
     )
 
@@ -301,54 +270,43 @@ async def p(ctx):
 
 # ---------------- MATCH SYSTEM ---------------- #
 
-class MatchView(discord.ui.View):
+class MatchConfirm(discord.ui.View):
 
     def __init__(self, requester, target):
         super().__init__(timeout=60)
         self.requester=requester
         self.target=target
 
-    @discord.ui.button(label="Accept",style=discord.ButtonStyle.green)
-    async def accept(self,interaction:discord.Interaction,button:discord.ui.Button):
+    @discord.ui.button(label="Match Creation Confirmed",style=discord.ButtonStyle.green)
+    async def confirm(self,interaction:discord.Interaction,button:discord.ui.Button):
 
         if interaction.user!=self.target:
             await interaction.response.send_message(
-                "Not your request.",ephemeral=True)
+                "Only the tagged user can confirm.",
+                ephemeral=True
+            )
             return
 
         duos[self.requester.id]=self.target.id
         duos[self.target.id]=self.requester.id
 
         embed=discord.Embed(
-            title="Duo Created",
+            title="Match Created",
             description=f"{self.requester.mention} 🤝 {self.target.mention}",
             color=discord.Color.green()
         )
 
         await interaction.response.edit_message(embed=embed,view=None)
 
-    @discord.ui.button(label="Decline",style=discord.ButtonStyle.red)
-    async def decline(self,interaction:discord.Interaction,button:discord.ui.Button):
-
-        if interaction.user!=self.target:
-            await interaction.response.send_message(
-                "Not your request.",ephemeral=True)
-            return
-
-        await interaction.response.edit_message(
-            content="Duo request declined.",
-            view=None
-        )
-
 @bot.command()
 async def match(ctx,member:discord.Member):
 
     if member.bot:
-        await ctx.send("You can't duo with bots.")
+        await ctx.send("You can't match bots.")
         return
 
     if member==ctx.author:
-        await ctx.send("You can't duo yourself.")
+        await ctx.send("You can't match yourself.")
         return
 
     if ctx.author.id in duos:
@@ -359,12 +317,20 @@ async def match(ctx,member:discord.Member):
         await ctx.send("That user already has a duo.")
         return
 
-    view=MatchView(ctx.author,member)
-
-    await ctx.send(
-        f"{member.mention}, **{ctx.author.display_name}** wants to duo with you!",
-        view=view
+    embed=discord.Embed(
+        title="Are you sure?",
+        description=(
+            "Do you want to create a match between:\n\n"
+            f"{ctx.author.mention}\n{member.mention}\n\n"
+            "You or any user can unmatch at any time.\n"
+            f"Prompt for {ctx.author}"
+        ),
+        color=discord.Color.blurple()
     )
+
+    view=MatchConfirm(ctx.author,member)
+
+    await ctx.send(embed=embed,view=view)
 
 @bot.command()
 async def us(ctx):
@@ -377,9 +343,34 @@ async def us(ctx):
     partner=ctx.guild.get_member(partner_id)
 
     embed=discord.Embed(
-        title="Your Duo",
+        title="Duo Team",
         description=f"{ctx.author.mention} 🤝 {partner.mention}",
         color=discord.Color.blurple()
+    )
+
+    embed.set_thumbnail(url=ctx.author.display_avatar.url)
+    embed.set_image(url=partner.display_avatar.url)
+
+    await ctx.send(embed=embed)
+
+@bot.command()
+async def unmatch(ctx):
+
+    if ctx.author.id not in duos:
+        await ctx.send("You don't have a duo.")
+        return
+
+    partner_id=duos[ctx.author.id]
+
+    duos.pop(ctx.author.id,None)
+    duos.pop(partner_id,None)
+
+    partner=ctx.guild.get_member(partner_id)
+
+    embed=discord.Embed(
+        title="Duo Removed",
+        description=f"{ctx.author.mention} and {partner.mention} are no longer matched.",
+        color=discord.Color.red()
     )
 
     await ctx.send(embed=embed)
