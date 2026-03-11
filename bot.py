@@ -12,6 +12,7 @@ from dotenv import load_dotenv
 from discord.ui import View
 import pytz
 import psutil
+import random
 
 bot_start_time = datetime.datetime.utcnow()
 
@@ -74,7 +75,11 @@ def save_times(data):
 
 @bot.event
 async def on_ready():
-    print(f"Bot online as {bot.user}")
+    await bot.change_presence(
+        status=discord.Status.dnd,
+        activity=discord.Game(name="Jarvis protocols")
+    )
+    print(f"Logged in as {bot.user}")
 
 @bot.event
 async def on_message(message):
@@ -356,8 +361,12 @@ async def avatar(ctx,member:discord.Member=None):
 
 @bot.command(name="8ball")
 async def eightball(ctx, *, question):
+    question_lower = question.lower()
 
     reply = random.choice(eightball_responses)
+
+    if "are you gay" in question_lower or "are u gay" in question_lower:
+        reply = "I may or may not be gay, but you seem to be."
 
     embed = discord.Embed(
         title="Magic 8ball",
