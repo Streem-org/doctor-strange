@@ -32,13 +32,12 @@ weekly_messages = defaultdict(int)
 count_number = 0
 last_counter = None
 
-blacklisted_users = set()
-
 duos = {}
 
 eightball_responses = [
-"Yes","No","Ask again later","Probably",
-"I don't think so","Without a doubt","Very likely"
+"Yes","No","Ask again later",
+"Chances of you getting with her","Chances similar to Arsenal bottling",
+"Chances of streem marrying his hgs","Otis Khan has kidnapped the bot"
 ]
 
 # ---------------- BOT ---------------- #
@@ -97,7 +96,7 @@ async def on_message(message):
                 f"{user.display_name} is AFK: {afk_users[user.id]}"
             )
 
-    # COUNTING SYSTEM
+    # COUNTING
     if message.channel.id == COUNTING_CHANNEL:
 
         try:
@@ -132,18 +131,18 @@ async def help(ctx):
 
     embed.add_field(
         name="Utility",
-        value="`.avatar`\n`.uptime`\n`.time`",
+        value="`.avatar`\n`.uptime`\n`.afk`",
         inline=False
     )
 
     embed.add_field(
-        name="Fun",
-        value="`.8ball`",
+        name="Time",
+        value="`.time`\n`.timeset`\n`.timeremove`",
         inline=False
     )
 
     embed.add_field(
-        name="Duo System",
+        name="Duo",
         value="`.match @user`\n`.us`\n`.unmatch`",
         inline=False
     )
@@ -154,13 +153,63 @@ async def help(ctx):
         inline=False
     )
 
-    embed.add_field(
-        name="Owner",
-        value="`.shutdown`",
-        inline=False
+    await ctx.send(embed=embed)
+
+# ---------------- AFK ---------------- #
+
+@bot.command()
+async def afk(ctx, *, reason="AFK"):
+
+    afk_users[ctx.author.id] = reason
+
+    embed = discord.Embed(
+        description=f"{ctx.author.mention} is now AFK\nReason: **{reason}**",
+        color=discord.Color.blurple()
     )
 
     await ctx.send(embed=embed)
+
+# ---------------- TIME ---------------- #
+
+@bot.command()
+async def time(ctx):
+
+    data = load_times()
+    tz = data.get(str(ctx.author.id))
+
+    if not tz:
+        await ctx.send("Use `.timeset <timezone>` first.")
+        return
+
+    now=datetime.datetime.now(
+        pytz.timezone(tz)
+    ).strftime("%I:%M %p")
+
+    await ctx.send(f"Your time: **{now}** ({tz})")
+
+@bot.command()
+async def timeset(ctx, timezone:str):
+
+    try:
+        pytz.timezone(timezone)
+    except:
+        await ctx.send("Invalid timezone.")
+        return
+
+    data = load_times()
+    data[str(ctx.author.id)] = timezone
+    save_times(data)
+
+    await ctx.send(f"Timezone set to **{timezone}**")
+
+@bot.command()
+async def timeremove(ctx):
+
+    data = load_times()
+    data.pop(str(ctx.author.id),None)
+    save_times(data)
+
+    await ctx.send("Timezone removed.")
 
 # ---------------- UTILITY ---------------- #
 
@@ -170,13 +219,7 @@ async def uptime(ctx):
     seconds=int(time.time()-start_time)
     uptime=str(timedelta(seconds=seconds))
 
-    embed = discord.Embed(
-        title="Bot Uptime",
-        description=f"Running for **{uptime}**",
-        color=discord.Color.blurple()
-    )
-
-    await ctx.send(embed=embed)
+    await ctx.send(f"Bot uptime: **{uptime}**")
 
 @bot.command()
 async def avatar(ctx,member:discord.Member=None):
@@ -199,42 +242,7 @@ async def eightball(ctx,*,question):
 
     reply=random.choice(eightball_responses)
 
-    embed = discord.Embed(
-        title="Magic 8ball",
-        description=f"**Question:** {question}\n**Answer:** {reply}",
-        color=discord.Color.blurple()
-    )
-
-    await ctx.send(embed=embed)
-
-# ---------------- TIME ---------------- #
-
-@bot.command()
-async def time(ctx):
-
-    data = load_times()
-    tz = data.get(str(ctx.author.id))
-
-    if not tz:
-        await ctx.send("Set timezone with `.timeset <zone>`")
-        return
-
-    now=datetime.datetime.now(
-        pytz.timezone(tz)
-    ).strftime("%I:%M %p")
-
-    await ctx.send(f"Your time: **{now}** ({tz})")
-
-# ---------------- SHUTDOWN ---------------- #
-
-@bot.command()
-async def shutdown(ctx):
-
-    if ctx.author.id!=CREATOR_ID:
-        return
-
-    await ctx.send("Shutting down... 👋🏼")
-    await bot.close()
+    await ctx.send(f"🎱 {reply}")
 
 # ---------------- EVIDENCE ---------------- #
 
@@ -261,8 +269,8 @@ async def p(ctx):
     )
 
     files=[]
-    for attachment in msg.attachments:
-        files.append(await attachment.to_file())
+    for a in msg.attachments:
+        files.append(await a.to_file())
 
     await staff_channel.send(embed=embed,files=files)
 
@@ -319,12 +327,7 @@ async def match(ctx,member:discord.Member):
 
     embed=discord.Embed(
         title="Are you sure?",
-        description=(
-            "Do you want to create a match between:\n\n"
-            f"{ctx.author.mention}\n{member.mention}\n\n"
-            "You or any user can unmatch at any time.\n"
-            f"Prompt for {ctx.author}"
-        ),
+        description=f"{ctx.author.mention}\n{member.mention}\n\nConfirm match creation.",
         color=discord.Color.blurple()
     )
 
@@ -367,13 +370,9 @@ async def unmatch(ctx):
 
     partner=ctx.guild.get_member(partner_id)
 
-    embed=discord.Embed(
-        title="Duo Removed",
-        description=f"{ctx.author.mention} and {partner.mention} are no longer matched.",
-        color=discord.Color.red()
+    await ctx.send(
+        f"{ctx.author.mention} and {partner.mention} are no longer matched."
     )
-
-    await ctx.send(embed=embed)
 
 # ---------------- RUN ---------------- #
 
