@@ -133,7 +133,7 @@ async def help(ctx):
 
     embed.add_field(
         name="Utility",
-        value="`.avatar`\n`.uptime`\n`.afk`",
+        value="`.avatar`\n`.uptime`\n`.afk`\n`.roledrop`(whitelisted)",
         inline=False
     )
 
