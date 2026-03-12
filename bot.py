@@ -3,6 +3,8 @@ import random
 import json
 import datetime
 from collections import defaultdict
+import psutil
+import time
 
 import discord
 from discord.ext import commands, tasks
@@ -17,31 +19,27 @@ COUNTING_CHANNEL = 1477918309696667800
 
 TIME_FILE = "times.json"
 WEEKLY_FILE = "weekly.json"
+DUOS_FILE = "duos.json"
 
 bot_start_time = datetime.datetime.utcnow()
 
 # ---------------- SAFE FILE FUNCTIONS ---------------- #
 
 def safe_load(file):
-
     try:
         with open(file, "r") as f:
             data = f.read().strip()
             if not data:
                 return {}
             return json.loads(data)
-
     except:
         return {}
 
 def safe_save(file, data):
-
-    temp_file = file + ".tmp"
-
-    with open(temp_file, "w") as f:
+    temp = file + ".tmp"
+    with open(temp, "w") as f:
         json.dump(data, f, indent=4)
-
-    os.replace(temp_file, file)
+    os.replace(temp, file)
 
 # ---------------- DATA ---------------- #
 
@@ -49,6 +47,9 @@ afk_users = {}
 
 weekly_messages = defaultdict(int)
 weekly_data = safe_load(WEEKLY_FILE)
+
+duos = safe_load(DUOS_FILE)
+duo_requests = {}
 
 count_number = 0
 last_counter = None
@@ -96,7 +97,6 @@ async def on_ready():
 async def weekly_reset():
 
     global weekly_data
-
     weekly_data = {}
     safe_save(WEEKLY_FILE, weekly_data)
 
@@ -110,15 +110,12 @@ async def on_message(message):
     if message.author.bot:
         return
 
-    # COMMANDS FIRST
     await bot.process_commands(message)
 
-    # weekly tracking
     weekly_messages[message.author.id] += 1
     weekly_data[str(message.author.id)] = weekly_messages[message.author.id]
     safe_save(WEEKLY_FILE, weekly_data)
 
-    # AFK REMOVE
     if message.author.id in afk_users:
 
         del afk_users[message.author.id]
@@ -133,7 +130,6 @@ async def on_message(message):
             embed=embed
         )
 
-    # AFK MENTION
     for user in message.mentions:
 
         if user.id in afk_users:
@@ -149,7 +145,6 @@ async def on_message(message):
 
             await message.channel.send(embed=embed)
 
-    # COUNTING SYSTEM
     if message.channel.id == COUNTING_CHANNEL:
 
         try:
@@ -194,7 +189,7 @@ async def help(ctx):
 
     embed.add_field(
         name="Fun",
-        value="`.8ball`\n`.ship`",
+        value="`.8ball`\n`.ship`\n`.match`\n`.duo`\n`.unmatch`",
         inline=False
     )
 
@@ -217,11 +212,7 @@ async def afk(ctx, *, reason="AFK"):
         color=discord.Color.orange()
     )
 
-    embed.add_field(
-        name="Reason",
-        value=reason,
-        inline=False
-    )
+    embed.add_field(name="Reason", value=reason)
 
     await ctx.send(embed=embed)
 
@@ -244,7 +235,7 @@ async def wk(ctx, sub=None, member: discord.Member=None):
 
         desc = ""
 
-        for i, (user_id, points) in enumerate(sorted_data[:10], start=1):
+        for i,(user_id,points) in enumerate(sorted_data[:10],start=1):
 
             user = ctx.guild.get_member(int(user_id))
 
@@ -262,7 +253,7 @@ async def wk(ctx, sub=None, member: discord.Member=None):
     elif sub == "p":
 
         member = member or ctx.author
-        points = weekly_data.get(str(member.id), 0)
+        points = weekly_data.get(str(member.id),0)
 
         embed = discord.Embed(
             title="Weekly Stats",
@@ -278,16 +269,30 @@ async def wk(ctx, sub=None, member: discord.Member=None):
 async def uptime(ctx):
 
     now = datetime.datetime.utcnow()
-    uptime = now - bot_start_time
 
-    days = uptime.days
-    hours, remainder = divmod(uptime.seconds, 3600)
-    minutes, seconds = divmod(remainder, 60)
+    bot_uptime = now - bot_start_time
+    bot_days = bot_uptime.days
+    bot_hours,remainder = divmod(bot_uptime.seconds,3600)
+    bot_minutes,bot_seconds = divmod(remainder,60)
+
+    system_uptime_seconds = int(time.time() - psutil.boot_time())
+    sys_days,remainder = divmod(system_uptime_seconds,86400)
+    sys_hours,remainder = divmod(remainder,3600)
+    sys_minutes,sys_seconds = divmod(remainder,60)
 
     embed = discord.Embed(
-        title="Bot Uptime",
-        description=f"{days}d {hours}h {minutes}m {seconds}s",
+        title="Uptime Information",
         color=discord.Color.blurple()
+    )
+
+    embed.add_field(
+        name="Bot Uptime",
+        value=f"{bot_days}d {bot_hours}h {bot_minutes}m {bot_seconds}s"
+    )
+
+    embed.add_field(
+        name="System Uptime",
+        value=f"{sys_days}d {sys_hours}h {sys_minutes}m {sys_seconds}s"
     )
 
     await ctx.send(embed=embed)
@@ -313,10 +318,9 @@ async def avatar(ctx, member: discord.Member=None):
 @bot.command(name="8ball")
 async def eightball(ctx, *, question):
 
-    question_lower = question.lower()
     reply = random.choice(eightball_responses)
 
-    if "are you gay" in question_lower or "are u gay" in question_lower:
+    if "are u gay" in question.lower() or "are you gay" in question.lower():
         reply = "I may or may not be gay, but you seem to be."
 
     embed = discord.Embed(title="Magic 8ball")
@@ -329,27 +333,106 @@ async def eightball(ctx, *, question):
 # ---------------- SHIP ---------------- #
 
 @bot.command()
-async def ship(ctx, member: discord.Member=None):
+async def ship(ctx, member: discord.Member):
 
-    user1 = ctx.author
-    user2 = member or ctx.author
+    percent = random.randint(0,100)
 
-    if user1 == user2:
-        await ctx.send("You need someone else.")
-        return
-
-    percent = random.randint(0, 100)
-
-    filled = int(percent / 10)
-    bar = "█" * filled + "░" * (10 - filled)
+    filled = int(percent/10)
+    bar = "█"*filled + "░"*(10-filled)
 
     embed = discord.Embed(
-        title=f"{user1.name} ❤️ {user2.name}",
+        title=f"{ctx.author.name} ❤️ {member.name}",
         description=f"`{bar}` {percent}%",
         color=discord.Color.blurple()
     )
 
     await ctx.send(embed=embed)
+
+# ---------------- DUO SYSTEM ---------------- #
+
+@bot.command()
+async def match(ctx, member: discord.Member):
+
+    if str(ctx.author.id) in duos:
+        await ctx.send("You already have a duo.")
+        return
+
+    duo_requests[member.id] = ctx.author.id
+
+    embed = discord.Embed(
+        title="Duo Request",
+        description=f"{ctx.author.mention} wants to duo with {member.mention}",
+        color=discord.Color.blurple()
+    )
+
+    embed.set_thumbnail(url=ctx.author.display_avatar.url)
+
+    embed.add_field(
+        name="Accept",
+        value=f"{member.mention} type `.accept`",
+        inline=False
+    )
+
+    await ctx.send(embed=embed)
+
+@bot.command()
+async def accept(ctx):
+
+    if ctx.author.id not in duo_requests:
+        await ctx.send("No duo request.")
+        return
+
+    requester = duo_requests[ctx.author.id]
+
+    duos[str(ctx.author.id)] = str(requester)
+    duos[str(requester)] = str(ctx.author.id)
+
+    safe_save(DUOS_FILE, duos)
+
+    del duo_requests[ctx.author.id]
+
+    embed = discord.Embed(
+        title="Duo Created ❤️",
+        description=f"<@{requester}> ❤️ {ctx.author.mention}",
+        color=discord.Color.green()
+    )
+
+    await ctx.send(embed=embed)
+
+@bot.command()
+async def duo(ctx):
+
+    if str(ctx.author.id) not in duos:
+        await ctx.send("You don't have a duo.")
+        return
+
+    partner = ctx.guild.get_member(int(duos[str(ctx.author.id)]))
+
+    embed = discord.Embed(
+        title="Your Duo",
+        description=f"{ctx.author.mention} ❤️ {partner.mention}",
+        color=discord.Color.blurple()
+    )
+
+    embed.set_thumbnail(url=partner.display_avatar.url)
+
+    await ctx.send(embed=embed)
+
+@bot.command()
+async def unmatch(ctx):
+
+    if str(ctx.author.id) not in duos:
+        await ctx.send("You don't have a duo.")
+        return
+
+    partner = duos[str(ctx.author.id)]
+
+    duos.pop(str(ctx.author.id),None)
+    duos.pop(str(partner),None)
+
+    safe_save(DUOS_FILE,duos)
+
+    await ctx.send("💔 Duo removed.")
 
 # ---------------- RUN ---------------- #
 
