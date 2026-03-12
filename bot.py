@@ -14,6 +14,10 @@ import pytz
 import psutil
 import random
 
+from PIL import Image, ImageDraw, ImageFont
+import aiohttp
+from io import BytesIO
+
 bot_start_time = datetime.datetime.utcnow()
 
 # ---------------- ENV ---------------- #
@@ -518,6 +522,38 @@ async def unmatch(ctx):
     await ctx.send(
         f"{ctx.author.mention} and {partner.mention} are no longer matched."
     )
+#------------- SHIP --------------#
+
+@bot.command()
+async def ship(ctx, member: discord.Member = None):
+
+    user1 = ctx.author
+    user2 = member or ctx.author
+
+    if user1 == user2:
+        await ctx.send("You need to ship with someone else.")
+        return
+
+    percent = random.randint(0,100)
+
+    filled = int(percent / 10)
+    bar = "█" * filled + "░" * (10 - filled)
+
+    embed = discord.Embed(
+        title=f"{user1.name} ❤️ {user2.name}",
+        description=f"`{bar}` **{percent}%**",
+        color=discord.Color.blurple()
+    )
+
+    embed.set_thumbnail(url=user1.display_avatar.url)
+    embed.set_image(url=user2.display_avatar.url)
+
+    embed.set_footer(
+        text=ctx.guild.name,
+        icon_url=ctx.guild.icon.url if ctx.guild.icon else None
+    )
+
+    await ctx.send(embed=embed)
 
 # ---------------- RUN ---------------- #
 
