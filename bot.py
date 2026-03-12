@@ -566,8 +566,7 @@ async def ship(ctx, member: discord.Member = None):
     )
 
     await ctx.send(embed=embed)
-
-    # ---------------- ROLE DROP ---------------- #
+# ---------------- ROLE DROP ---------------- #
 
 @bot.hybrid_command()
 async def roledrop(ctx, role: discord.Role):
@@ -578,7 +577,7 @@ async def roledrop(ctx, role: discord.Role):
 
     embed = discord.Embed(
         title="Role Drop",
-        description=f"First person to send **any message** wins {role.mention}!",
+        description=f"Reply to this message to win {role.mention}!",
         color=discord.Color.gold()
     )
 
@@ -588,11 +587,13 @@ async def roledrop(ctx, role: discord.Role):
     )
 
     await ctx.send("@everyone")
-    await ctx.send(embed=embed)
+    drop_message = await ctx.send(embed=embed)
 
     def check(m):
         return (
             m.channel == ctx.channel
+            and m.reference is not None
+            and m.reference.message_id == drop_message.id
             and not m.author.bot
         )
 
