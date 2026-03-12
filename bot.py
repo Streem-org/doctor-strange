@@ -45,8 +45,8 @@ duos = {}
 
 eightball_responses = [
 "Yes","No","Ask again later",
-"Chances of you getting with her","Chances similar to Arsenal bottling",
-"Chances of streem marrying his hgs","Otis Khan has kidnapped the bot", "I forgot the question"
+"It is certain","Reply hazy, try later",
+"Not in the mood shut the fuck up", "I forgot the question"
 ]
 
 # ---------------- BOT ---------------- #
@@ -151,6 +151,17 @@ async def help(ctx):
     embed.add_field(
         name="Moderation",
         value="`.ev p` (reply message)",
+        inline=False
+    )
+    embed.add_field(
+        name="Fun",
+        value="`.8ball`\n`.ship`\n`.choose`",
+        inline=False
+    )
+
+    embed.add_field(
+        name="Admin Only",
+        value="`.blacklist`\n`.unblacklist`\n`.shutdown`",
         inline=False
     )
 
