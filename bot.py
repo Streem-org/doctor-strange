@@ -7,12 +7,11 @@ from collections import defaultdict
 from datetime import timedelta
 
 import discord
-from discord.ext import commands
+from discord.ext import commands, tasks
 from dotenv import load_dotenv
 from discord.ui import View
 import pytz
 import psutil
-import random
 
 from PIL import Image, ImageDraw, ImageFont
 import aiohttp
@@ -28,15 +27,18 @@ TOKEN = os.getenv("TOKEN")
 CREATOR_ID = 1378768035187527795
 COUNTING_CHANNEL = 1477918309696667800
 STAFF_EVIDENCE_CHANNEL = 1481206250623598725
-ROLEDROP_USERS = 1378768035187527795, 1214001826127421440
+ROLEDROP_USERS = (1378768035187527795,1214001826127421440)
 
 TIME_FILE = "times.json"
+WEEKLY_FILE = "weekly.json"
 
 # ---------------- DATA ---------------- #
 
 start_time = time.time()
 
 afk_users = {}
+afk_pings = {}
+
 weekly_messages = defaultdict(int)
 
 count_number = 0
@@ -47,7 +49,7 @@ duos = {}
 eightball_responses = [
 "Yes","No","Ask again later",
 "It is certain","Reply hazy, try later",
-"Not in the mood shut the fuck up", "I forgot the question"
+"Not in the mood shut the fuck up","I forgot the question"
 ]
 
 # ---------------- BOT ---------------- #
@@ -62,10 +64,37 @@ bot = commands.Bot(
     help_command=None
 )
 
-# ---------------- FILE ---------------- #
+# ---------------- AFK VIEW ---------------- #
+
+class AFKReturnView(discord.ui.View):
+
+    def __init__(self, user_id):
+        super().__init__(timeout=60)
+        self.user_id = user_id
+
+    @discord.ui.button(label="Welcome Back", style=discord.ButtonStyle.green)
+    async def welcome_back(self, interaction: discord.Interaction, button: discord.ui.Button):
+
+        if interaction.user.id != self.user_id:
+            await interaction.response.send_message(
+                "This button is not for you.",
+                ephemeral=True
+            )
+            return
+
+        await interaction.response.send_message(
+            "Your AFK has already been removed.",
+            ephemeral=True
+        )
+
+# ---------------- FILES ---------------- #
 
 if not os.path.exists(TIME_FILE):
     with open(TIME_FILE,"w") as f:
+        json.dump({},f)
+
+if not os.path.exists(WEEKLY_FILE):
+    with open(WEEKLY_FILE,"w") as f:
         json.dump({},f)
 
 def load_times():
@@ -76,15 +105,44 @@ def save_times(data):
     with open(TIME_FILE,"w") as f:
         json.dump(data,f,indent=4)
 
-# ---------------- EVENTS ---------------- #
+def load_weekly():
+    with open(WEEKLY_FILE,"r") as f:
+        return json.load(f)
+
+def save_weekly(data):
+    with open(WEEKLY_FILE,"w") as f:
+        json.dump(data,f,indent=4)
+
+weekly_data = load_weekly()
+
+# ---------------- READY ---------------- #
 
 @bot.event
 async def on_ready():
+
     await bot.change_presence(
         status=discord.Status.dnd,
         activity=discord.Game(name="Jarvis protocols")
     )
+
+    if not weekly_reset.is_running():
+        weekly_reset.start()
+
     print(f"Logged in as {bot.user}")
+
+# ---------------- WEEKLY RESET ---------------- #
+
+@tasks.loop(hours=168)
+async def weekly_reset():
+
+    global weekly_data
+
+    weekly_data = {}
+    save_weekly(weekly_data)
+
+    print("Weekly leaderboard reset.")
+
+# ---------------- MESSAGE EVENT ---------------- #
 
 @bot.event
 async def on_message(message):
@@ -94,11 +152,51 @@ async def on_message(message):
     if message.author.bot:
         return
 
+    # weekly tracking
     weekly_messages[message.author.id]+=1
+    weekly_data[str(message.author.id)] = weekly_messages[message.author.id]
+    save_weekly(weekly_data)
 
+    # AFK remove
+    if message.author.id in afk_users:
 
+        del afk_users[message.author.id]
 
-    # COUNTING
+        embed=discord.Embed(
+            description="Welcome back! Your AFK has been removed.",
+            color=discord.Color.green()
+        )
+
+        view = AFKReturnView(message.author.id)
+
+        await message.channel.send(
+            content=message.author.mention,
+            embed=embed,
+            view=view
+        )
+
+    # AFK mention detect
+    for user in message.mentions:
+
+        if user.id in afk_users:
+
+            reason = afk_users[user.id]
+
+            afk_pings.setdefault(user.id,[])
+            afk_pings[user.id].append(
+                f"{message.author} in {message.channel.mention}"
+            )
+
+            embed=discord.Embed(
+                description=f"{user.mention} is currently AFK",
+                color=discord.Color.orange()
+            )
+
+            embed.add_field(name="Reason",value=reason)
+
+            await message.channel.send(embed=embed)
+
+    # counting system
     if message.channel.id == COUNTING_CHANNEL:
 
         try:
@@ -125,15 +223,15 @@ async def on_message(message):
 @bot.command()
 async def help(ctx):
 
-    embed = discord.Embed(
-        title="Bot Commands",
+    embed=discord.Embed(
+        title="Jarvis Command Panel",
         description="Prefix: `.`",
         color=discord.Color.blurple()
     )
 
     embed.add_field(
         name="Utility",
-        value="`.avatar`\n`.uptime`\n`.afk`\n`.roledrop`(whitelisted)",
+        value="`.avatar`\n`.uptime`\n`.afk`\n`.roledrop`",
         inline=False
     )
 
@@ -144,16 +242,11 @@ async def help(ctx):
     )
 
     embed.add_field(
-        name="Duo",
-        value="`.match @user`\n`.us`\n`.unmatch`",
+        name="Weekly",
+        value="`.wk`\n`.wk p @user`",
         inline=False
     )
 
-    embed.add_field(
-        name="Moderation",
-        value="`.ev p` (reply message)",
-        inline=False
-    )
     embed.add_field(
         name="Fun",
         value="`.8ball`\n`.ship`\n`.choose`",
@@ -161,200 +254,107 @@ async def help(ctx):
     )
 
     embed.add_field(
-        name="Admin Only",
-        value="`.blacklist`\n`.unblacklist`\n`.shutdown`",
+        name="Match",
+        value="`.match @user`\n`.us`\n`.unmatch`",
         inline=False
+    )
+
+    embed.add_field(
+        name="Moderation",
+        value="`.ev p` (reply to message)",
+        inline=False
+    )
+
+    embed.set_footer(
+        text=f"Requested by {ctx.author}",
+        icon_url=ctx.author.display_avatar.url
     )
 
     await ctx.send(embed=embed)
 
-# ---------------- AFK ---------------- #
-import discord
-from discord.ext import commands
-from discord.ui import View
-
-afk_users = {}
-afk_pings = {}
-
-class AFKReturnView(View):
-    def __init__(self, user_id):
-        super().__init__(timeout=60)
-        self.user_id = user_id
-
-    @discord.ui.button(label="Show Pings", style=discord.ButtonStyle.green)
-    async def show_pings(self, interaction: discord.Interaction, button: discord.ui.Button):
-
-        pings = afk_pings.get(self.user_id, [])
-
-        if not pings:
-            await interaction.response.send_message(
-                "No one pinged you while you were AFK.",
-                ephemeral=True
-            )
-        else:
-            msg = "\n".join(pings[:10])
-            await interaction.response.send_message(
-                f"People who pinged you:\n{msg}",
-                ephemeral=True
-            )
-
-    @discord.ui.button(label="Close", style=discord.ButtonStyle.red)
-    async def close(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.message.delete()
-
+# ---------------- AFK COMMAND ---------------- #
 
 @bot.command()
 async def afk(ctx, *, reason="AFK"):
 
     afk_users[ctx.author.id] = reason
-    afk_pings[ctx.author.id] = []
 
     embed = discord.Embed(
-        title="You're now AFK!",
-        description=f"Reason: **{reason}**",
-        color=discord.Color.blurple()
+        description=f"{ctx.author.mention} is now AFK.",
+        color=discord.Color.orange()
     )
 
-    embed.set_footer(text=ctx.author.name, icon_url=ctx.author.avatar.url)
+    embed.add_field(
+        name="Reason",
+        value=reason,
+        inline=False
+    )
 
     await ctx.send(embed=embed)
 
+# ---------------- WEEKLY COMMAND ---------------- #
 
-@bot.event
-async def on_message(message):
+@bot.command()
+async def wk(ctx, sub=None, member: discord.Member=None):
 
-    if message.author.bot:
-        return
+    if sub is None:
 
-    # Remove AFK when user talks
-    if message.author.id in afk_users:
+        if not weekly_data:
+            await ctx.send("No weekly data yet.")
+            return
 
-        del afk_users[message.author.id]
-
-        embed = discord.Embed(
-            description="**Your AFK has been removed!**",
-            color=discord.Color.red()
+        sorted_data = sorted(
+            weekly_data.items(),
+            key=lambda x:x[1],
+            reverse=True
         )
 
-        view = AFKReturnView(message.author.id)
+        desc=""
 
-        await message.channel.send(
-            content=message.author.mention,
-            embed=embed,
-            view=view
+        for i,(user_id,points) in enumerate(sorted_data[:10],start=1):
+
+            user=ctx.guild.get_member(int(user_id))
+
+            if user:
+                desc+=f"**{i}. {user.name}** — {points} messages\n"
+
+        embed=discord.Embed(
+            title="Weekly Leaderboard",
+            description=desc,
+            color=discord.Color.gold()
         )
 
-    # Detect mentions of AFK users
-    for user in message.mentions:
+        await ctx.send(embed=embed)
 
-        if user.id in afk_users:
+    elif sub=="p":
 
-            reason = afk_users[user.id]
+        member = member or ctx.author
+        points = weekly_data.get(str(member.id),0)
 
-            if user.id not in afk_pings:
-                afk_pings[user.id] = []
+        embed=discord.Embed(
+            title="Weekly Stats",
+            description=f"{member.mention} sent **{points} messages** this week.",
+            color=discord.Color.blurple()
+        )
 
-            afk_pings[user.id].append(
-                f"{message.author} in {message.channel.mention}"
-            )
-
-            embed = discord.Embed(
-                description=f"{user.mention} is currently **AFK**",
-                color=discord.Color.orange()
-            )
-
-            embed.add_field(
-                name="Reason",
-                value=reason,
-                inline=False
-            )
-
-            await message.channel.send(embed=embed)
-
-    await bot.process_commands(message)
-
-# ---------------- TIME ---------------- #
-
-@bot.command()
-async def time(ctx):
-
-    data = load_times()
-    tz = data.get(str(ctx.author.id))
-
-    if not tz:
-        await ctx.send("Use `.timeset <timezone>` first.")
-        return
-
-    now=datetime.datetime.now(
-        pytz.timezone(tz)
-    ).strftime("%I:%M %p")
-
-    await ctx.send(f"Your time: **{now}** ({tz})")
-
-@bot.command()
-async def timeset(ctx, timezone:str):
-
-    try:
-        pytz.timezone(timezone)
-    except:
-        await ctx.send("Invalid timezone.")
-        return
-
-    data = load_times()
-    data[str(ctx.author.id)] = timezone
-    save_times(data)
-
-    await ctx.send(f"Timezone set to **{timezone}**")
-
-@bot.command()
-async def timeremove(ctx):
-
-    data = load_times()
-    data.pop(str(ctx.author.id),None)
-    save_times(data)
-
-    await ctx.send("Timezone removed.")
+        await ctx.send(embed=embed)
 
 # ---------------- UTILITY ---------------- #
-
-
 
 @bot.command()
 async def uptime(ctx):
 
     now = datetime.datetime.utcnow()
 
-    # Bot uptime
     bot_uptime = now - bot_start_time
     bot_days = bot_uptime.days
-    bot_hours, remainder = divmod(bot_uptime.seconds, 3600)
-    bot_minutes, bot_seconds = divmod(remainder, 60)
+    bot_hours, remainder = divmod(bot_uptime.seconds,3600)
+    bot_minutes, bot_seconds = divmod(remainder,60)
 
-    # System uptime
-    boot_time = datetime.datetime.fromtimestamp(psutil.boot_time())
-    system_uptime = now - boot_time
-    sys_days = system_uptime.days
-    sys_hours, remainder = divmod(system_uptime.seconds, 3600)
-    sys_minutes, sys_seconds = divmod(remainder, 60)
-
-    embed = discord.Embed(
-        title="Uptime Information",
+    embed=discord.Embed(
+        title="Bot Uptime",
+        description=f"{bot_days}d {bot_hours}h {bot_minutes}m {bot_seconds}s",
         color=discord.Color.blurple()
-    )
-
-    embed.description = (
-        f"I was last rebooted `{bot_days} days ago`\n\n"
-        f"**Bot Uptime**\n"
-        f"{bot_days} days, {bot_hours} hours, {bot_minutes} minutes, {bot_seconds} seconds\n"
-        f"• {bot_start_time.strftime('%d %B %Y %I:%M %p')}\n\n"
-        f"**System Uptime**\n"
-        f"{sys_days} days, {sys_hours} hours, {sys_minutes} minutes, {sys_seconds} seconds\n"
-        f"• {boot_time.strftime('%d %B %Y %I:%M %p')}"
-    )
-
-    embed.set_footer(
-        text=f"Requested by {ctx.author}",
-        icon_url=ctx.author.avatar.url
     )
 
     await ctx.send(embed=embed)
@@ -364,7 +364,7 @@ async def avatar(ctx,member:discord.Member=None):
 
     member = member or ctx.author
 
-    embed = discord.Embed(
+    embed=discord.Embed(
         title=f"{member.name}'s Avatar",
         color=discord.Color.blurple()
     )
@@ -376,243 +376,43 @@ async def avatar(ctx,member:discord.Member=None):
 # ---------------- FUN ---------------- #
 
 @bot.command(name="8ball")
-async def eightball(ctx, *, question):
-    question_lower = question.lower()
+async def eightball(ctx,*,question):
 
+    question_lower = question.lower()
     reply = random.choice(eightball_responses)
 
     if "are you gay" in question_lower or "are u gay" in question_lower:
-        reply = "I may or may not be gay, but you seem to be."
+        reply="I may or may not be gay, but you seem to be."
 
-    embed = discord.Embed(
-        title="Magic 8ball",
-        color=discord.Color.blurple()
-    )
+    embed=discord.Embed(title="Magic 8ball")
 
-    embed.add_field(
-        name="Question",
-        value=question,
-        inline=False
-    )
-
-    embed.add_field(
-        name="Answer",
-        value=reply,
-        inline=False
-    )
-
-    embed.set_thumbnail(url="https://upload.wikimedia.org/wikipedia/commons/e/eb/Magic_eight_ball.png")
-
-    await ctx.send(embed=embed)
-
-# ---------------- EVIDENCE ---------------- #
-
-@bot.group()
-async def ev(ctx):
-    if ctx.invoked_subcommand is None:
-        await ctx.message.delete()
-
-@ev.command()
-async def p(ctx):
-
-    if not ctx.message.reference:
-        await ctx.message.delete()
-        return
-
-    ref = ctx.message.reference
-    msg = await ctx.channel.fetch_message(ref.message_id)
-
-    staff_channel = bot.get_channel(STAFF_EVIDENCE_CHANNEL)
-
-    embed = discord.Embed(
-        description=f"**{msg.author}:**\n{msg.content}",
-        color=discord.Color.dark_theme()
-    )
-
-    files=[]
-    for a in msg.attachments:
-        files.append(await a.to_file())
-
-    await staff_channel.send(embed=embed,files=files)
-
-    await ctx.message.delete()
-
-# ---------------- MATCH SYSTEM ---------------- #
-
-class MatchConfirm(discord.ui.View):
-
-    def __init__(self, requester, target):
-        super().__init__(timeout=60)
-        self.requester=requester
-        self.target=target
-
-    @discord.ui.button(label="Match Creation Confirmed",style=discord.ButtonStyle.green)
-    async def confirm(self,interaction:discord.Interaction,button:discord.ui.Button):
-
-        if interaction.user!=self.target:
-            await interaction.response.send_message(
-                "Only the tagged user can confirm.",
-                ephemeral=True
-            )
-            return
-
-        duos[self.requester.id]=self.target.id
-        duos[self.target.id]=self.requester.id
-
-        embed=discord.Embed(
-            title="Match Created",
-            description=f"{self.requester.mention} 🤝 {self.target.mention}",
-            color=discord.Color.green()
-        )
-
-        await interaction.response.edit_message(embed=embed,view=None)
-
-@bot.command()
-async def match(ctx,member:discord.Member):
-
-    if member.bot:
-        await ctx.send("You can't match bots.")
-        return
-
-    if member==ctx.author:
-        await ctx.send("You can't match yourself.")
-        return
-
-    if ctx.author.id in duos:
-        await ctx.send("You already have a duo.")
-        return
-
-    if member.id in duos:
-        await ctx.send("That user already has a duo.")
-        return
-
-    embed=discord.Embed(
-        title="Are you sure?",
-        description=f"{ctx.author.mention}\n{member.mention}\n\nConfirm match creation.",
-        color=discord.Color.blurple()
-    )
-
-    view=MatchConfirm(ctx.author,member)
-
-    await ctx.send(embed=embed,view=view)
-
-@bot.command()
-async def us(ctx):
-
-    if ctx.author.id not in duos:
-        await ctx.send("You don't have a duo yet.")
-        return
-
-    partner_id=duos[ctx.author.id]
-    partner=ctx.guild.get_member(partner_id)
-
-    embed=discord.Embed(
-        title="Duo Team",
-        description=f"{ctx.author.mention} 🤝 {partner.mention}",
-        color=discord.Color.blurple()
-    )
-
-    embed.set_thumbnail(url=ctx.author.display_avatar.url)
-    embed.set_image(url=partner.display_avatar.url)
+    embed.add_field(name="Question",value=question,inline=False)
+    embed.add_field(name="Answer",value=reply,inline=False)
 
     await ctx.send(embed=embed)
 
 @bot.command()
-async def unmatch(ctx):
-
-    if ctx.author.id not in duos:
-        await ctx.send("You don't have a duo.")
-        return
-
-    partner_id=duos[ctx.author.id]
-
-    duos.pop(ctx.author.id,None)
-    duos.pop(partner_id,None)
-
-    partner=ctx.guild.get_member(partner_id)
-
-    await ctx.send(
-        f"{ctx.author.mention} and {partner.mention} are no longer matched."
-    )
-#------------- SHIP --------------#
-
-@bot.command()
-async def ship(ctx, member: discord.Member = None):
+async def ship(ctx,member:discord.Member=None):
 
     user1 = ctx.author
     user2 = member or ctx.author
 
-    if user1 == user2:
-        await ctx.send("You need to ship with someone else.")
+    if user1==user2:
+        await ctx.send("You need someone else.")
         return
 
-    percent = random.randint(0,100)
+    percent=random.randint(0,100)
 
-    filled = int(percent / 10)
-    bar = "█" * filled + "░" * (10 - filled)
+    filled=int(percent/10)
+    bar="█"*filled+"░"*(10-filled)
 
-    embed = discord.Embed(
+    embed=discord.Embed(
         title=f"{user1.name} ❤️ {user2.name}",
-        description=f"`{bar}` **{percent}%**",
+        description=f"`{bar}` {percent}%",
         color=discord.Color.blurple()
     )
 
-    embed.set_thumbnail(url=user1.display_avatar.url)
-    embed.set_image(url=user2.display_avatar.url)
-
-    embed.set_footer(
-        text=ctx.guild.name,
-        icon_url=ctx.guild.icon.url if ctx.guild.icon else None
-    )
-
     await ctx.send(embed=embed)
-# ---------------- ROLE DROP ---------------- #
-
-@bot.hybrid_command()
-async def roledrop(ctx, role: discord.Role):
-
-    if ctx.author.id not in ROLEDROP_USERS:
-        await ctx.send("You cannot start a role drop.")
-        return
-
-    embed = discord.Embed(
-        title="Role Drop",
-        description=f"Reply to this message to win {role.mention}!",
-        color=discord.Color.gold()
-    )
-
-    embed.set_footer(
-        text=ctx.guild.name,
-        icon_url=ctx.guild.icon.url if ctx.guild.icon else None
-    )
-
-    await ctx.send("@everyone")
-    drop_message = await ctx.send(embed=embed)
-
-    def check(m):
-        return (
-            m.channel == ctx.channel
-            and m.reference is not None
-            and m.reference.message_id == drop_message.id
-            and not m.author.bot
-        )
-
-    try:
-        msg = await bot.wait_for("message", timeout=30, check=check)
-
-        await msg.author.add_roles(role)
-
-        win = discord.Embed(
-            description=f"{msg.author.mention} won **{role.name}**!",
-            color=discord.Color.green()
-        )
-
-        win.set_footer(text=ctx.guild.name)
-
-        await ctx.send(embed=win)
-
-    except:
-        await ctx.send("No one claimed the role in time.")
 
 # ---------------- RUN ---------------- #
 
