@@ -1,55 +1,66 @@
 import os
-import time
 import random
 import json
 import datetime
 from collections import defaultdict
-from datetime import timedelta
 
 import discord
 from discord.ext import commands, tasks
 from dotenv import load_dotenv
-from discord.ui import View
-import pytz
-import psutil
-
-from PIL import Image, ImageDraw, ImageFont
-import aiohttp
-from io import BytesIO
-
-bot_start_time = datetime.datetime.utcnow()
 
 # ---------------- ENV ---------------- #
 
 load_dotenv()
 TOKEN = os.getenv("TOKEN")
 
-CREATOR_ID = 1378768035187527795
 COUNTING_CHANNEL = 1477918309696667800
-STAFF_EVIDENCE_CHANNEL = 1481206250623598725
-ROLEDROP_USERS = (1378768035187527795,1214001826127421440)
 
 TIME_FILE = "times.json"
 WEEKLY_FILE = "weekly.json"
 
+bot_start_time = datetime.datetime.utcnow()
+
+# ---------------- SAFE FILE FUNCTIONS ---------------- #
+
+def safe_load(file):
+
+    try:
+        with open(file, "r") as f:
+            data = f.read().strip()
+            if not data:
+                return {}
+            return json.loads(data)
+
+    except:
+        return {}
+
+def safe_save(file, data):
+
+    temp_file = file + ".tmp"
+
+    with open(temp_file, "w") as f:
+        json.dump(data, f, indent=4)
+
+    os.replace(temp_file, file)
+
 # ---------------- DATA ---------------- #
 
-start_time = time.time()
-
 afk_users = {}
-afk_pings = {}
 
 weekly_messages = defaultdict(int)
+weekly_data = safe_load(WEEKLY_FILE)
 
 count_number = 0
 last_counter = None
 
-duos = {}
-
 eightball_responses = [
-"Yes","No","Ask again later",
-"It is certain","Reply hazy, try later",
-"Not in the mood shut the fuck up","I forgot the question"
+"Yes",
+"No",
+"Ask again later",
+"It is certain",
+"Reply hazy, try later",
+"Not in the mood shut the fuck up",
+"I forgot the question"
 ]
 
 # ---------------- BOT ---------------- #
@@ -63,57 +74,6 @@ bot = commands.Bot(
     intents=intents,
     help_command=None
 )
-
-# ---------------- AFK VIEW ---------------- #
-
-class AFKReturnView(discord.ui.View):
-
-    def __init__(self, user_id):
-        super().__init__(timeout=60)
-        self.user_id = user_id
-
-    @discord.ui.button(label="Welcome Back", style=discord.ButtonStyle.green)
-    async def welcome_back(self, interaction: discord.Interaction, button: discord.ui.Button):
-
-        if interaction.user.id != self.user_id:
-            await interaction.response.send_message(
-                "This button is not for you.",
-                ephemeral=True
-            )
-            return
-
-        await interaction.response.send_message(
-            "Your AFK has already been removed.",
-            ephemeral=True
-        )
-
-# ---------------- FILES ---------------- #
-
-if not os.path.exists(TIME_FILE):
-    with open(TIME_FILE,"w") as f:
-        json.dump({},f)
-
-if not os.path.exists(WEEKLY_FILE):
-    with open(WEEKLY_FILE,"w") as f:
-        json.dump({},f)
-
-def load_times():
-    with open(TIME_FILE,"r") as f:
-        return json.load(f)
-
-def save_times(data):
-    with open(TIME_FILE,"w") as f:
-        json.dump(data,f,indent=4)
-
-def load_weekly():
-    with open(WEEKLY_FILE,"r") as f:
-        return json.load(f)
-
-def save_weekly(data):
-    with open(WEEKLY_FILE,"w") as f:
-        json.dump(data,f,indent=4)
-
-weekly_data = load_weekly()
 
 # ---------------- READY ---------------- #
 
@@ -138,65 +98,58 @@ async def weekly_reset():
     global weekly_data
 
     weekly_data = {}
-    save_weekly(weekly_data)
-
-    print("Weekly leaderboard reset.")
+    safe_save(WEEKLY_FILE, weekly_data)
 
 # ---------------- MESSAGE EVENT ---------------- #
 
 @bot.event
 async def on_message(message):
 
-    global count_number,last_counter
+    global count_number, last_counter
 
     if message.author.bot:
         return
 
-    # weekly tracking
-    weekly_messages[message.author.id]+=1
-    weekly_data[str(message.author.id)] = weekly_messages[message.author.id]
-    save_weekly(weekly_data)
+    # COMMANDS FIRST
+    await bot.process_commands(message)
 
-    # AFK remove
+    # weekly tracking
+    weekly_messages[message.author.id] += 1
+    weekly_data[str(message.author.id)] = weekly_messages[message.author.id]
+    safe_save(WEEKLY_FILE, weekly_data)
+
+    # AFK REMOVE
     if message.author.id in afk_users:
 
         del afk_users[message.author.id]
 
-        embed=discord.Embed(
-            description="Welcome back! Your AFK has been removed.",
-            color=discord.Color.green()
+        embed = discord.Embed(
+            description="Your AFK has been removed.",
+            color=discord.Color.red()
         )
-
-        view = AFKReturnView(message.author.id)
 
         await message.channel.send(
             content=message.author.mention,
-            embed=embed,
-            view=view
+            embed=embed
         )
 
-    # AFK mention detect
+    # AFK MENTION
     for user in message.mentions:
 
         if user.id in afk_users:
 
             reason = afk_users[user.id]
 
-            afk_pings.setdefault(user.id,[])
-            afk_pings[user.id].append(
-                f"{message.author} in {message.channel.mention}"
-            )
-
-            embed=discord.Embed(
+            embed = discord.Embed(
                 description=f"{user.mention} is currently AFK",
                 color=discord.Color.orange()
             )
 
-            embed.add_field(name="Reason",value=reason)
+            embed.add_field(name="Reason", value=reason)
 
             await message.channel.send(embed=embed)
 
-    # counting system
+    # COUNTING SYSTEM
     if message.channel.id == COUNTING_CHANNEL:
 
         try:
@@ -216,14 +169,12 @@ async def on_message(message):
         count_number = number
         last_counter = message.author.id
 
-    await bot.process_commands(message)
-
 # ---------------- HELP ---------------- #
 
 @bot.command()
 async def help(ctx):
 
-    embed=discord.Embed(
+    embed = discord.Embed(
         title="Jarvis Command Panel",
         description="Prefix: `.`",
         color=discord.Color.blurple()
@@ -231,13 +182,7 @@ async def help(ctx):
 
     embed.add_field(
         name="Utility",
-        value="`.avatar`\n`.uptime`\n`.afk`\n`.roledrop`",
-        inline=False
-    )
-
-    embed.add_field(
-        name="Time",
-        value="`.time`\n`.timeset`\n`.timeremove`",
+        value="`.avatar`\n`.uptime`\n`.afk`",
         inline=False
     )
 
@@ -249,19 +194,7 @@ async def help(ctx):
 
     embed.add_field(
         name="Fun",
-        value="`.8ball`\n`.ship`\n`.choose`",
-        inline=False
-    )
-
-    embed.add_field(
-        name="Match",
-        value="`.match @user`\n`.us`\n`.unmatch`",
-        inline=False
-    )
-
-    embed.add_field(
-        name="Moderation",
-        value="`.ev p` (reply to message)",
+        value="`.8ball`\n`.ship`",
         inline=False
     )
 
@@ -272,7 +205,7 @@ async def help(ctx):
 
     await ctx.send(embed=embed)
 
-# ---------------- AFK COMMAND ---------------- #
+# ---------------- AFK ---------------- #
 
 @bot.command()
 async def afk(ctx, *, reason="AFK"):
@@ -292,7 +225,7 @@ async def afk(ctx, *, reason="AFK"):
 
     await ctx.send(embed=embed)
 
-# ---------------- WEEKLY COMMAND ---------------- #
+# ---------------- WEEKLY ---------------- #
 
 @bot.command()
 async def wk(ctx, sub=None, member: discord.Member=None):
@@ -305,20 +238,20 @@ async def wk(ctx, sub=None, member: discord.Member=None):
 
         sorted_data = sorted(
             weekly_data.items(),
-            key=lambda x:x[1],
+            key=lambda x: x[1],
             reverse=True
         )
 
-        desc=""
+        desc = ""
 
-        for i,(user_id,points) in enumerate(sorted_data[:10],start=1):
+        for i, (user_id, points) in enumerate(sorted_data[:10], start=1):
 
-            user=ctx.guild.get_member(int(user_id))
+            user = ctx.guild.get_member(int(user_id))
 
             if user:
-                desc+=f"**{i}. {user.name}** — {points} messages\n"
+                desc += f"**{i}. {user.name}** — {points} messages\n"
 
-        embed=discord.Embed(
+        embed = discord.Embed(
             title="Weekly Leaderboard",
             description=desc,
             color=discord.Color.gold()
@@ -326,12 +259,12 @@ async def wk(ctx, sub=None, member: discord.Member=None):
 
         await ctx.send(embed=embed)
 
-    elif sub=="p":
+    elif sub == "p":
 
         member = member or ctx.author
-        points = weekly_data.get(str(member.id),0)
+        points = weekly_data.get(str(member.id), 0)
 
-        embed=discord.Embed(
+        embed = discord.Embed(
             title="Weekly Stats",
             description=f"{member.mention} sent **{points} messages** this week.",
             color=discord.Color.blurple()
@@ -339,32 +272,34 @@ async def wk(ctx, sub=None, member: discord.Member=None):
 
         await ctx.send(embed=embed)
 
-# ---------------- UTILITY ---------------- #
+# ---------------- UPTIME ---------------- #
 
 @bot.command()
 async def uptime(ctx):
 
     now = datetime.datetime.utcnow()
+    uptime = now - bot_start_time
 
-    bot_uptime = now - bot_start_time
-    bot_days = bot_uptime.days
-    bot_hours, remainder = divmod(bot_uptime.seconds,3600)
-    bot_minutes, bot_seconds = divmod(remainder,60)
+    days = uptime.days
+    hours, remainder = divmod(uptime.seconds, 3600)
+    minutes, seconds = divmod(remainder, 60)
 
-    embed=discord.Embed(
+    embed = discord.Embed(
         title="Bot Uptime",
-        description=f"{bot_days}d {bot_hours}h {bot_minutes}m {bot_seconds}s",
+        description=f"{days}d {hours}h {minutes}m {seconds}s",
         color=discord.Color.blurple()
     )
 
     await ctx.send(embed=embed)
 
+# ---------------- AVATAR ---------------- #
+
 @bot.command()
-async def avatar(ctx,member:discord.Member=None):
+async def avatar(ctx, member: discord.Member=None):
 
     member = member or ctx.author
 
-    embed=discord.Embed(
+    embed = discord.Embed(
         title=f"{member.name}'s Avatar",
         color=discord.Color.blurple()
     )
@@ -373,40 +308,42 @@ async def avatar(ctx,member:discord.Member=None):
 
     await ctx.send(embed=embed)
 
-# ---------------- FUN ---------------- #
+# ---------------- 8BALL ---------------- #
 
 @bot.command(name="8ball")
-async def eightball(ctx,*,question):
+async def eightball(ctx, *, question):
 
     question_lower = question.lower()
     reply = random.choice(eightball_responses)
 
     if "are you gay" in question_lower or "are u gay" in question_lower:
-        reply="I may or may not be gay, but you seem to be."
+        reply = "I may or may not be gay, but you seem to be."
 
-    embed=discord.Embed(title="Magic 8ball")
+    embed = discord.Embed(title="Magic 8ball")
 
-    embed.add_field(name="Question",value=question,inline=False)
-    embed.add_field(name="Answer",value=reply,inline=False)
+    embed.add_field(name="Question", value=question, inline=False)
+    embed.add_field(name="Answer", value=reply, inline=False)
 
     await ctx.send(embed=embed)
 
+# ---------------- SHIP ---------------- #
+
 @bot.command()
-async def ship(ctx,member:discord.Member=None):
+async def ship(ctx, member: discord.Member=None):
 
     user1 = ctx.author
     user2 = member or ctx.author
 
-    if user1==user2:
+    if user1 == user2:
         await ctx.send("You need someone else.")
         return
 
-    percent=random.randint(0,100)
+    percent = random.randint(0, 100)
 
-    filled=int(percent/10)
-    bar="█"*filled+"░"*(10-filled)
+    filled = int(percent / 10)
+    bar = "█" * filled + "░" * (10 - filled)
 
-    embed=discord.Embed(
+    embed = discord.Embed(
         title=f"{user1.name} ❤️ {user2.name}",
         description=f"`{bar}` {percent}%",
         color=discord.Color.blurple()
