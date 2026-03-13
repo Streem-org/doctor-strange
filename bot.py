@@ -24,7 +24,7 @@ TIME_FILE = "times.json"
 WEEKLY_FILE = "weekly.json"
 DUOS_FILE = "duos.json"
 
-bot_start_time = datetime.datetime.utcnow()
+datetime.datetime.now(datetime.UTC)
 
 # ---------------- SAFE FILE FUNCTIONS ---------------- #
 
