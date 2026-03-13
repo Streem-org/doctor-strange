@@ -477,7 +477,7 @@ import discord
 from discord.ext import commands
 
 ROLEDROP_FILE = "roledrop_winners.json"
-EXECUTOR_ROLE_ID = 1378768035187527795, 1214001826127421440
+EXECUTOR_ROLE_ID = 1481903901656481812
 MESSI_ROLE_ID = 1476264072809943091
 CRISTIANO_ROLE_ID = 1476262979010957414
 OWNER_FAVOURITE_ID = 1476260723297489019
@@ -501,9 +501,11 @@ def save_roledrop(data):
 async def roledrop(ctx, role: discord.Role):
 
     # check executor permission
-    if EXECUTOR_ROLE_ID not in EXECUTOR_ROLE_ID:
-        await ctx.send("❌ You cannot execute this command.")
-        return
+    executor_role = ctx.guild.get_role(EXECUTOR_ROLE_ID)
+
+    if executor_role not in ctx.author.roles:
+     await ctx.send("❌ You cannot execute this command.")
+    return
 
     # only allow specific roles to be dropped
     if role.id not in ALLOWED_DROP_ROLES:
@@ -512,7 +514,8 @@ async def roledrop(ctx, role: discord.Role):
 
     winners = load_roledrop()
 
-    embed = @everyone discord.Embed(
+    content= "@everyone"
+    embed= discord.Embed(
         title="🎉 Role Drop",
         description=f"Reply to this message to win {role.mention}!",
         color=discord.Color.gold()
