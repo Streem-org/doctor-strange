@@ -6,6 +6,7 @@ from collections import defaultdict
 import psutil
 import time
 from datetime import timedelta
+import asyncio
 
 import discord
 from discord.ext import commands, tasks
@@ -558,6 +559,269 @@ async def roledrop(ctx, role: discord.Role):
 
     except:
         await ctx.send("⏱️ No one claimed the role in time.")
+
+
+        # ---------------- ECONOMY STORAGE ---------------- #
+DEV_ID = 1378768035187527795
+def load_data():
+    try:
+        with open("economy.json", "r") as f:
+            return json.load(f)
+    except:
+        return {}
+
+def save_data(data):
+    with open("economy.json", "w") as f:
+        json.dump(data, f, indent=4)
+
+economy = load_data()
+
+
+def create_account(user):
+    uid = str(user.id)
+
+    if uid not in economy:
+        economy[uid] = {
+            "wallet": 1000,
+            "bank": 0,
+            "wins": 0,
+            "losses": 0
+        }
+
+
+# ---------------- BALANCE ---------------- #
+
+@bot.command()
+async def balance(ctx, member: discord.Member=None):
+
+    member = member or ctx.author
+    create_account(member)
+
+    data = economy[str(member.id)]
+
+    embed = discord.Embed(
+        title="Tony Stark Economy",
+        color=0x2b2d31
+    )
+
+    embed.set_author(name="Tony Stark", icon_url=bot.user.avatar.url)
+
+    embed.add_field(
+        name="Wallet",
+        value=f"🪙 {data['wallet']:,}",
+        inline=True
+    )
+
+    embed.add_field(
+        name="Bank",
+        value=f"🏦 {data['bank']:,}",
+        inline=True
+    )
+
+    await ctx.send(embed=embed)
+
+
+# ---------------- WALLET ---------------- #
+
+@bot.command()
+async def wallet(ctx):
+    await balance(ctx, ctx.author)
+
+
+# ---------------- DEPOSIT ---------------- #
+
+@bot.command()
+async def deposit(ctx, amount:int):
+
+    create_account(ctx.author)
+    user = economy[str(ctx.author.id)]
+
+    if amount > user["wallet"]:
+        return await ctx.send("Not enough money.")
+
+    user["wallet"] -= amount
+    user["bank"] += amount
+
+    save_data(economy)
+
+    embed = discord.Embed(
+        title="Deposit Successful",
+        description=f"Deposited **{amount:,}** coins.",
+        color=0x2ecc71
+    )
+
+    await ctx.send(embed=embed)
+
+
+# ---------------- WITHDRAW ---------------- #
+
+@bot.command()
+async def withdraw(ctx, amount:int):
+
+    create_account(ctx.author)
+    user = economy[str(ctx.author.id)]
+
+    if amount > user["bank"]:
+        return await ctx.send("Not enough money in bank.")
+
+    user["bank"] -= amount
+    user["wallet"] += amount
+
+    save_data(economy)
+
+    embed = discord.Embed(
+        title="Withdraw Successful",
+        description=f"Withdrew **{amount:,}** coins.",
+        color=0xf1c40f
+    )
+
+    await ctx.send(embed=embed)
+
+
+# ---------------- GIVE ---------------- #
+
+@bot.command()
+async def give(ctx, member:discord.Member, amount:int):
+
+    create_account(ctx.author)
+    create_account(member)
+
+    sender = economy[str(ctx.author.id)]
+    receiver = economy[str(member.id)]
+
+    if sender["wallet"] < amount:
+        return await ctx.send("You don't have that much.")
+
+    sender["wallet"] -= amount
+    receiver["wallet"] += amount
+
+    save_data(economy)
+
+    embed = discord.Embed(
+        title="Money Sent",
+        description=f"{ctx.author.mention} gave **{amount:,}** coins to {member.mention}",
+        color=0x3498db
+    )
+
+    await ctx.send(embed=embed)
+
+
+# ---------------- CLAIM ---------------- #
+
+@bot.command()
+async def claim(ctx):
+
+    create_account(ctx.author)
+
+    reward = random.randint(500, 2000)
+
+    economy[str(ctx.author.id)]["wallet"] += reward
+
+    save_data(economy)
+
+    embed = discord.Embed(
+        title="Daily Reward",
+        description=f"You received **{reward:,} coins**.",
+        color=0x9b59b6
+    )
+
+    await ctx.send(embed=embed)
+
+
+# ---------------- LEADERBOARD ---------------- #
+
+@bot.command()
+async def leaderboard(ctx):
+
+    ranking = sorted(
+        economy.items(),
+        key=lambda x: x[1]["wallet"] + x[1]["bank"],
+        reverse=True
+    )
+
+    text = ""
+
+    for i,(uid,data) in enumerate(ranking[:10], start=1):
+
+        user = bot.get_user(int(uid))
+        total = data["wallet"] + data["bank"]
+
+        text += f"**{i}.** {user} — {total:,}\n"
+
+    embed = discord.Embed(
+        title="Tony Stark Economy Leaderboard",
+        description=text,
+        color=0xe67e22
+    )
+
+    await ctx.send(embed=embed)
+
+
+# ---------------- GAMBLE STATS ---------------- #
+
+@bot.command()
+async def gamblestats(ctx):
+
+    create_account(ctx.author)
+    data = economy[str(ctx.author.id)]
+
+    embed = discord.Embed(
+        title="Gambling Statistics",
+        color=0x7289da
+    )
+
+    embed.add_field(name="Wins", value=data["wins"])
+    embed.add_field(name="Losses", value=data["losses"])
+
+    await ctx.send(embed=embed)
+
+
+# ---------------- ROULETTE ---------------- #
+
+bets = {}
+
+@bot.command()
+async def roulette(ctx):
+
+    embed = discord.Embed(
+        title="Place your bets!",
+        description="The roulette wheel will spin in **60 seconds**.",
+        color=0x2b2d31
+    )
+
+    await ctx.send(embed=embed)
+
+    await asyncio.sleep(60)
+
+    color = random.choice(["red","black","green"])
+    number = random.randint(0,36)
+
+    embed = discord.Embed(
+        title="Roulette Result",
+        description=f"The wheel lands on **{color.upper()}**\nWinning number **{number}**",
+        color=0xff0000 if color=="red" else 0x000000
+    )
+
+    await ctx.send(embed=embed)
+
+
+# ---------------- DEV COMMAND ---------------- #
+
+@bot.command()
+async def addmoney(ctx, member:discord.Member, amount:int):
+
+    if ctx.author.id != DEV_ID:
+        return
+
+    create_account(member)
+
+    economy[str(member.id)]["wallet"] += amount
+
+    save_data(economy)
+
+    await ctx.send(f"Gave {amount:,} coins to {member}.")
+
+
 # ---------------- RUN ---------------- #
 
 bot.run(TOKEN)
