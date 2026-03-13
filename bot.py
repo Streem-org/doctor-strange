@@ -560,27 +560,35 @@ async def roledrop(ctx, role: discord.Role):
     except:
         await ctx.send("⏱️ No one claimed the role in time.")
 
+# ---------------- ECONOMY STORAGE ---------------- #
 
-        # ---------------- ECONOMY STORAGE ---------------- #
 DEV_ID = 1378768035187527795
+
+import os
+
 def load_data():
-    try:
-        with open("economy.json", "r") as f:
-            return json.load(f)
-    except:
-        return {}
+    if not os.path.exists("economy.json"):
+        with open("economy.json", "w") as f:
+            json.dump({}, f)
+
+    with open("economy.json", "r") as f:
+        return json.load(f)
+
 
 def save_data(data):
     with open("economy.json", "w") as f:
         json.dump(data, f, indent=4)
 
+
 economy = load_data()
 
 
 def create_account(user):
+
     uid = str(user.id)
 
     if uid not in economy:
+
         economy[uid] = {
             "wallet": 1000,
             "bank": 0,
@@ -588,6 +596,11 @@ def create_account(user):
             "losses": 0
         }
 
+        save_data(economy)
+
+@bot.event
+async def on_member_join(member):
+    create_account(member)
 
 # ---------------- BALANCE ---------------- #
 
@@ -606,17 +619,8 @@ async def balance(ctx, member: discord.Member=None):
 
     embed.set_author(name="Tony Stark", icon_url=bot.user.avatar.url)
 
-    embed.add_field(
-        name="Wallet",
-        value=f"🪙 {data['wallet']:,}",
-        inline=True
-    )
-
-    embed.add_field(
-        name="Bank",
-        value=f"🏦 {data['bank']:,}",
-        inline=True
-    )
+    embed.add_field(name="Wallet", value=f"🪙 {data['wallet']:,}", inline=True)
+    embed.add_field(name="Bank", value=f"🏦 {data['bank']:,}", inline=True)
 
     await ctx.send(embed=embed)
 
@@ -776,33 +780,124 @@ async def gamblestats(ctx):
     await ctx.send(embed=embed)
 
 
-# ---------------- ROULETTE ---------------- #
+# ---------------- ROULETTE SYSTEM ---------------- #
 
 bets = {}
+roulette_running = False
+
 
 @bot.command()
-async def roulette(ctx):
+async def roulette(ctx, amount:int, bet:str):
+
+    global roulette_running
+
+    create_account(ctx.author)
+    user = economy[str(ctx.author.id)]
+
+    if user["wallet"] < amount:
+        return await ctx.send("Not enough money.")
+
+    bet = bet.lower()
+
+    valid_colors = ["red","black","green"]
+
+    if bet not in valid_colors and not bet.isdigit():
+        return await ctx.send("Invalid bet. Use red, black, green or number 0-36.")
+
+    user["wallet"] -= amount
+    save_data(economy)
+
+    bets[ctx.author.id] = {
+        "amount": amount,
+        "bet": bet
+    }
 
     embed = discord.Embed(
-        title="Place your bets!",
-        description="The roulette wheel will spin in **60 seconds**.",
+        title="Bet Placed",
+        description=f"You placed **{amount:,}** on **{bet}**.",
         color=0x2b2d31
     )
 
+    embed.add_field(name="Bet amount", value=f"🪙 {amount:,}", inline=True)
+    embed.add_field(name="Bet type", value=bet.capitalize(), inline=True)
+
     await ctx.send(embed=embed)
 
-    await asyncio.sleep(60)
+    if not roulette_running:
+
+        roulette_running = True
+
+        start = discord.Embed(
+            title="Place your bets!",
+            description="The roulette wheel will spin in **30 seconds**.",
+            color=0x2b2d31
+        )
+
+        await ctx.send(embed=start)
+
+        await asyncio.sleep(30)
+
+        await spin_roulette(ctx)
+
+
+
+async def spin_roulette(ctx):
+
+    global bets, roulette_running
 
     color = random.choice(["red","black","green"])
     number = random.randint(0,36)
 
+    winners = []
+
+    for uid,data in bets.items():
+
+        bet = data["bet"]
+        amount = data["amount"]
+
+        win = False
+        payout = 0
+
+        if bet == color:
+            win = True
+            payout = amount * 2
+
+        if bet.isdigit() and int(bet) == number:
+            win = True
+            payout = amount * 35
+
+        if bet == "green" and color == "green":
+            payout = amount * 14
+            win = True
+
+        if win:
+
+            economy[str(uid)]["wallet"] += payout
+            economy[str(uid)]["wins"] += 1
+
+            winners.append(f"<@{uid}> — {payout:,}")
+
+        else:
+            economy[str(uid)]["losses"] += 1
+
+
+    save_data(economy)
+
     embed = discord.Embed(
         title="Roulette Result",
-        description=f"The wheel lands on **{color.upper()}**\nWinning number **{number}**",
+        description=f"• The wheel lands on **{color.upper()}**\n• Winning number **{number}**",
         color=0xff0000 if color=="red" else 0x000000
     )
 
+    if winners:
+        embed.add_field(name="Winners", value="\n".join(winners), inline=False)
+    else:
+        embed.add_field(name="Winners", value="No one won this round.", inline=False)
+
     await ctx.send(embed=embed)
+
+    bets = {}
+    roulette_running = False
 
 
 # ---------------- DEV COMMAND ---------------- #
