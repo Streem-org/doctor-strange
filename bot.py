@@ -353,7 +353,7 @@ async def blacklist(ctx,member:discord.Member):
     save_json(BLACKLIST_FILE,blacklisted_users)
 
     embed = discord.Embed(
-        title="User Blacklisted",
+        title="User Blacklisted, Sounds like a skill issue",
         description=f"{member.mention} cannot use commands",
         color=discord.Color.red()
     )
@@ -391,10 +391,10 @@ async def reboot(ctx):
 
     os.execv(__file__,["python"]+os.sys.argv)
 # ---------------- UPTIME ---------------- #
-    @bot.hybrid_command()
-    async def uptime(ctx):
+@bot.hybrid_command(name="uptime")
+async def uptime_command(ctx):
 
-     uptime_seconds = int(time.time() - start_time)
+    uptime_seconds = int(time.time() - start_time)
     uptime = str(datetime.timedelta(seconds=uptime_seconds))
 
     cpu = psutil.cpu_percent()
@@ -406,33 +406,37 @@ async def reboot(ctx):
         color=discord.Color.teal()
     )
 
-    embed.add_field(
-        name="⏳ Uptime",
-        value=uptime,
-        inline=True
-    )
+    embed.add_field(name="⏳ Uptime", value=uptime, inline=True)
+    embed.add_field(name="📡 Ping", value=f"{ping} ms", inline=True)
+    embed.add_field(name="🧠 CPU", value=f"{cpu}%", inline=True)
+    embed.add_field(name="💾 RAM", value=f"{ram}%", inline=True)
 
-    embed.add_field(
-        name="📡 Ping",
-        value=f"{ping} ms",
-        inline=True
-    )
-
-    embed.add_field(
-        name="🧠 CPU Usage",
-        value=f"{cpu}%",
-        inline=True
-    )
-
-    embed.add_field(
-        name="💾 RAM Usage",
-        value=f"{ram}%",
-        inline=True
-    )
-
-    embed.set_footer(text="Otis Khan Monitoring System")
+    embed.set_footer(text="Otis Khan Monitoring")
 
     await ctx.reply(embed=embed)
+    # ---------------- CHOOSE ---------------- #
 
+@bot.hybrid_command()
+async def choose(ctx, *options):
+
+    if len(options) < 2:
+        await ctx.reply("Provide at least 2 choices.")
+        return
+
+    choice = random.choice(options)
+
+    embed = discord.Embed(
+        title="Otis Khan Decision Engine",
+        description=f"I choose **{choice}**",
+        color=discord.Color.blurple()
+    )
+
+    embed.add_field(
+        name="Choices",
+        value=", ".join(options),
+        inline=False
+    )
+
+    await ctx.reply(embed=embed)
 bot.run(TOKEN)
 
