@@ -37,6 +37,8 @@ def save_json(file,data):
 times = load_json(TIME_FILE)
 weekly_data = load_json(WEEKLY_FILE)
 blacklisted_users = load_json(BLACKLIST_FILE)
+AUTOREACT_FILE = "autoreactions.json"
+autoreactions = safe_load(AUTOREACT_FILE)
 
 weekly_messages = defaultdict(int)
 afk_users = {}
@@ -45,11 +47,16 @@ start_time = time.time()
 
 eightball_responses = [
 "Yes","No","Ask again later","It is certain",
-"My Dev said no","Not in the mood","I forgot the question"
+"Ok bro as u wish","Not in the mood","I forgot the question"
 ]
 
 # ---------------- BOT ---------------- #
 
+ALLOWED_SERVERS = [
+    1469526303148609720,
+    1386245608184090795,
+    1479551809080135763
+]
 intents = discord.Intents.default()
 intents.message_content = True
 intents.members = True
@@ -63,12 +70,19 @@ bot = commands.Bot(
 # ---------------- READY ---------------- #
 
 @bot.event
+async def on_guild_join(guild):
+
+    if guild.id not in ALLOWED_SERVERS:
+        await guild.leave()
+
+@bot.event
 async def on_ready():
 
+    for guild in bot.guilds:
+        if guild.id not in ALLOWED_SERVERS:
+            await guild.leave()
+
     print(f"Logged in as {bot.user}")
-
-    await bot.tree.sync()
-
     await bot.change_presence(
         status=discord.Status.dnd,
         activity=discord.Game("Training again")
@@ -536,6 +550,62 @@ async def say(ctx, *, message: str):
 
     if channel:
         await channel.send(message)
+@autoreaction.command(name="add")
+@commands.has_permissions(manage_guild=True)
+async def autoreaction_add(ctx, phrase: str, emoji: str):
+
+    autoreactions[phrase.lower()] = emoji
+    save_json(AUTOREACT_FILE, autoreactions)
+
+    embed = discord.Embed(
+        title="Autoreaction Added",
+        description=f"Phrase: `{phrase}`\nEmoji: {emoji}",
+        color=discord.Color.green()
+    )
+
+    await ctx.reply(embed=embed)
+@autoreaction.command(name="remove")
+@commands.has_permissions(manage_guild=True)
+async def autoreaction_remove(ctx, phrase: str):
+
+    if phrase.lower() in autoreactions:
+        autoreactions.pop(phrase.lower())
+        save_json(AUTOREACT_FILE, autoreactions)
+
+        embed = discord.Embed(
+            title="Autoreaction Removed",
+            description=f"Phrase `{phrase}` removed.",
+            color=discord.Color.red()
+        )
+
+        await ctx.reply(embed=embed)
+
+    else:
+        await ctx.reply("Phrase not found.")
+@autoreaction.command(name="list")
+async def autoreaction_list(ctx):
+
+    if not autoreactions:
+        return await ctx.reply("No autoreactions set.")
+
+    desc = ""
+
+    for phrase, emoji in autoreactions.items():
+        desc += f"`{phrase}` → {emoji}\n"
+
+    embed = discord.Embed(
+        title="Autoreaction List",
+        description=desc,
+        color=discord.Color.blurple()
+    )
+
+    await ctx.reply(embed=embed)
+for phrase, emoji in autoreactions.items():
+    if phrase in message.content.lower():
+        try:
+            await message.add_reaction(emoji)
+        except:
+            pass
 
 bot.run(TOKEN)
 
