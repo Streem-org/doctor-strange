@@ -20,6 +20,20 @@ TIME_FILE = "times.json"
 WEEKLY_FILE = "weekly.json"
 BLACKLIST_FILE = "blacklist.json"
 
+
+GENERAL_CHANNEL = 1469526304738119940  # replace with your general channel ID
+
+@bot.hybrid_command(name="say")
+@commands.has_permissions(manage_messages=True)
+async def say(ctx, *, message: str):
+
+    await ctx.message.delete()
+
+    channel = bot.get_channel(GENERAL_CHANNEL)
+
+    if channel:
+        await channel.send(message)
+
 # ---------------- FILE SYSTEM ---------------- #
 
 def load_json(file):
