@@ -392,16 +392,20 @@ async def reboot(ctx):
 
     os.execv(__file__,["python"]+os.sys.argv)
 # ---------------- UPTIME ---------------- #
+import psutil
+import time
+import datetime
+
+start_time = time.time()
+
 @bot.hybrid_command(name="uptime")
 async def uptime(ctx):
 
     now = int(time.time())
 
-    # bot uptime
     bot_uptime_seconds = int(time.time() - start_time)
     bot_reboot_time = now - bot_uptime_seconds
 
-    # system uptime
     system_boot = int(psutil.boot_time())
     system_uptime_seconds = now - system_boot
 
@@ -421,10 +425,6 @@ async def uptime(ctx):
         f"**System Uptime**\n"
         f"{system_uptime}\n"
         f"• <t:{system_boot}:f>"
-    )
-
-    embed.set_footer(
-        text=f"Requested by {ctx.author} • Today at {datetime.datetime.now().strftime('%I:%M %p')}"
     )
 
     await ctx.reply(embed=embed)
@@ -500,43 +500,26 @@ async def roledrop(ctx, role: discord.Role):
 
 
 
-@bot.hybrid_command(name="avatar", description="View a user's avatar with options")
+@bot.hybrid_command(name="avatar")
 async def avatar(ctx, member: discord.Member = None):
-    if member is None:
-        member = ctx.author
 
-    # Determine avatar URL (animated if possible)
-    avatar_url = member.avatar.url
+    member = member or ctx.author
 
     embed = discord.Embed(
         title=f"{member.name}'s Avatar",
-        description=f"[Click here to open full avatar]({avatar_url})",
         color=discord.Color.blurple()
     )
-    embed.set_image(url=avatar_url)
-    embed.set_footer(text="Otis Khan Bot System")
 
-    # Buttons for avatar
-    class AvatarButtons(ui.View):
-        def __init__(self):
-            super().__init__(timeout=None)  # buttons never timeout
+    embed.set_image(url=member.display_avatar.url)
 
-        @ui.button(label="Open Avatar", style=ButtonStyle.link, url=avatar_url)
-        async def open_avatar(self, interaction, button):
-            pass  # link button doesn't need action
+    embed.add_field(
+        name="Download",
+        value=f"[Click Here]({member.display_avatar.url})",
+        inline=False
+    )
 
-        @ui.button(label="Download PNG", style=ButtonStyle.secondary)
-        async def download_png(self, interaction, button):
-            await interaction.response.send_message(f"Here is the PNG version: {member.avatar.with_format('png').url}", ephemeral=True)
+    embed.set_footer(text=f"Requested by {ctx.author}")
 
-        @ui.button(label="Download JPEG", style=ButtonStyle.secondary)
-        async def download_jpeg(self, interaction, button):
-            await interaction.response.send_message(f"Here is the JPEG version: {member.avatar.with_format('jpeg').url}", ephemeral=True)
-
-        @ui.button(label="Download WebP", style=ButtonStyle.secondary)
-        async def download_webp(self, interaction, button):
-            await interaction.response.send_message(f"Here is the WebP version: {member.avatar.with_format('webp').url}", ephemeral=True)
-
-    await ctx.send(embed=embed, view=AvatarButtons())
+    await ctx.reply(embed=embed)
 bot.run(TOKEN)
 
