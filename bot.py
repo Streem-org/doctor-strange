@@ -58,8 +58,6 @@ eightball_responses = [
 ]
 
 # ---------------- BOT ---------------- #
-
-
 intents = discord.Intents.default()
 intents.message_content = True
 intents.members = True
@@ -204,19 +202,39 @@ async def say(ctx, *, message: str):
     await ctx.send(message)
 
 # ---------------- UPTIME ---------------- #
-
 @bot.hybrid_command(name="uptime")
 async def uptime(ctx):
     now = int(time.time())
 
-    bot_uptime_seconds = int(time.time() - start_time)
+    bot_uptime_seconds = int(now - start_time)
     system_boot = int(psutil.boot_time())
     system_uptime_seconds = now - system_boot
 
-    embed = discord.Embed(title="Uptime", color=discord.Color.dark_teal())
-    embed.description = (
-        f"Bot Uptime: {str(datetime.timedelta(seconds=bot_uptime_seconds))}\n"
-        f"System Uptime: {str(datetime.timedelta(seconds=system_uptime_seconds))}"
+    bot_time = str(datetime.timedelta(seconds=bot_uptime_seconds))
+    system_time = str(datetime.timedelta(seconds=system_uptime_seconds))
+
+    cpu = psutil.cpu_percent(interval=1)
+    ram = psutil.virtual_memory().percent
+    ping = round(bot.latency * 1000)
+
+    embed = discord.Embed(
+        description=(
+            f"```ansi\n"
+            f"\x1b[1;37mSYSTEM STATUS\x1b[0m\n\n"
+            f"\x1b[1;30mBot Uptime   ::\x1b[0m {bot_time}\n"
+            f"\x1b[1;30mSystem Uptime::\x1b[0m {system_time}\n"
+            f"\x1b[1;30mPing         ::\x1b[0m {ping} ms\n"
+            f"\x1b[1;30mCPU Usage    ::\x1b[0m {cpu}%\n"
+            f"\x1b[1;30mRAM Usage    ::\x1b[0m {ram}%\n"
+            f"\n\x1b[1;37mSTATUS: OPERATIONAL\x1b[0m"
+            f"\n```"
+        ),
+        color=0x0d1117  # super dark
+    )
+
+    embed.set_footer(
+        text=f"{ctx.author}",
+        icon_url=ctx.author.display_avatar.url
     )
 
     await ctx.reply(embed=embed)
