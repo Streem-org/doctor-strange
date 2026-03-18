@@ -472,5 +472,51 @@ async def ping(ctx):
 
     await msg.edit(content=None, embed=embed)
 
+    # ---------------- AVATAR ---------------- #
+@bot.hybrid_command(name="avatar")
+async def avatar(ctx, member: discord.Member = None):
+    member = member or ctx.author
+
+    embed = discord.Embed(
+        description=(
+            f"```ansi\n"
+            f"\x1b[1;37mIDENTITY SCAN\x1b[0m\n\n"
+            f"\x1b[1;30mUser   ::\x1b[0m {member}\n"
+            f"\x1b[1;30mID     ::\x1b[0m {member.id}\n"
+            f"\n\x1b[1;37mSTATUS: VISUAL ACQUIRED\x1b[0m"
+            f"\n```"
+        ),
+        color=member.color if member.color != discord.Color.default() else 0x0d1117
+    )
+
+    embed.set_image(url=member.display_avatar.url)
+
+    embed.set_footer(
+        text=f"Requested by {ctx.author}",
+        icon_url=ctx.author.display_avatar.url
+    )
+
+    await ctx.reply(embed=embed)
+
+    # ---------------- REBOOT ---------------- #
+@bot.hybrid_command(name="reboot")
+async def reboot(ctx):
+
+    # Dev only
+    if ctx.author.id != 1378768035187527795:
+        return await ctx.reply("❌ You cannot use this command.")
+
+    embed = discord.Embed(
+        description="```ansi\n\x1b[1;31mSYSTEM RESTART INITIATED...\x1b[0m\n```",
+        color=ctx.author.color if ctx.author.color != discord.Color.default() else 0x0d1117
+    )
+
+    await ctx.reply(embed=embed)
+
+    await bot.close()
+
+    # Restart process
+    os.execv(sys.executable, ['python'] + sys.argv)
+
     
 bot.run(TOKEN)
