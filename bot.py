@@ -361,6 +361,208 @@ async def time_set(ctx, *, timezone: str):
 
     await ctx.send(f"🌍 Timezone set to {timezone}")
 
+    # ---------------- TIME CULTURE ---------------- #
+@time_cmd.command(name="culture")
+async def time_culture(ctx, timezone: str = None):
+
+    member = ctx.author
+
+    if not timezone:
+        if str(member.id) not in times:
+            return await ctx.reply("❌ Set timezone first using `.time set <zone>`")
+        timezone = times[str(member.id)]
+
+    try:
+        tz = pytz.timezone(timezone)
+    except:
+        return await ctx.reply("❌ Invalid timezone.")
+
+    now = datetime.datetime.now(tz)
+    hour = now.hour
+
+    # -------- FUNNY CULTURE LOGIC -------- #
+
+    # 🇮🇳 INDIA
+    if "Kolkata" in timezone or "India" in timezone:
+        if 6 <= hour < 10:
+            culture = "☀️ Waking up + chai stronger than your life decisions."
+        elif 10 <= hour < 17:
+            culture = "🏫 Pretending to work while thinking about food."
+        elif 17 <= hour < 20:
+            culture = "☕ Evening chai break — legally required."
+        else:
+            culture = "🌙 Late night reels + overthinking everything."
+
+    # 🇵🇰 PAKISTAN
+    elif "Karachi" in timezone or "Pakistan" in timezone:
+        if 6 <= hour < 10:
+            culture = "☀️ Breakfast + planning to fix life (won’t happen)."
+        elif 10 <= hour < 17:
+            culture = "🏢 Work hours + random chai breaks."
+        elif 17 <= hour < 21:
+            culture = "🍵 Tea + gossip session unlocked."
+        else:
+            culture = "🌙 Late night vibes + existential crisis."
+
+    # 🇺🇸 USA
+    elif "America" in timezone:
+        if 6 <= hour < 10:
+            culture = "☕ Coffee carrying the entire personality."
+        elif 10 <= hour < 17:
+            culture = "💼 Work + checking phone every 2 minutes."
+        elif 17 <= hour < 21:
+            culture = "🍔 Gym (optional) + food (mandatory)."
+        else:
+            culture = "🌙 Gaming / Netflix / 'just one more episode'."
+
+    # 🇬🇧 UK
+    elif "London" in timezone:
+        if 6 <= hour < 10:
+            culture = "☕ Tea first, problems later."
+        elif 10 <= hour < 17:
+            culture = "🏢 Work + complaining about weather."
+        elif 17 <= hour < 21:
+            culture = "🍽️ Dinner + more tea (of course)."
+        else:
+            culture = "🌙 Quiet night + overthinking politely."
+
+    # 🇫🇷 FRANCE
+    elif "Paris" in timezone:
+        if 6 <= hour < 10:
+            culture = "🥐 Croissant + judging everything silently."
+        elif 10 <= hour < 17:
+            culture = "🏢 Work but make it aesthetic."
+        elif 17 <= hour < 21:
+            culture = "🍷 Wine + pretending life is a movie."
+        else:
+            culture = "🌙 Late night elegance (or just scrolling)."
+
+    # 🇦🇪 UAE
+    elif "Dubai" in timezone:
+        if 6 <= hour < 10:
+            culture = "☀️ Early grind + luxury mindset."
+        elif 10 <= hour < 17:
+            culture = "🏢 Work + checking expensive cars outside."
+        elif 17 <= hour < 21:
+            culture = "🌆 Mall trips + flex culture."
+        else:
+            culture = "🌙 Late night drives + vibes."
+
+    # 🇯🇵 JAPAN
+    elif "Tokyo" in timezone:
+        if 6 <= hour < 10:
+            culture = "🍙 Commute + silent train vibes."
+        elif 10 <= hour < 18:
+            culture = "🏢 Work mode: max discipline."
+        elif 18 <= hour < 22:
+            culture = "🍜 Ramen + anime + city lights."
+        else:
+            culture = "🌙 Quiet night + deep thoughts."
+
+    # 🇦🇺 AUSTRALIA
+    elif "Sydney" in timezone:
+        if 6 <= hour < 10:
+            culture = "🌅 Beach, coffee, and good vibes."
+        elif 10 <= hour < 17:
+            culture = "🏢 Work… kinda."
+        elif 17 <= hour < 21:
+            culture = "🍻 Chill time with friends."
+        else:
+            culture = "🌙 Sleep or random late chaos."
+
+    # 🇩🇪 GERMANY
+    elif "Berlin" in timezone:
+        if 6 <= hour < 10:
+            culture = "☀️ Efficient morning routine."
+        elif 10 <= hour < 17:
+            culture = "🏢 Productivity level: 100%."
+        elif 17 <= hour < 21:
+            culture = "🍺 Relax + structured fun."
+        else:
+            culture = "🌙 Quiet, organized night."
+
+    # 🌍 DEFAULT
+    else:
+        if 6 <= hour < 12:
+            culture = "☀️ Morning vibes + questionable decisions ahead."
+        elif 12 <= hour < 18:
+            culture = "🏢 Daytime productivity (or pretending)."
+        elif 18 <= hour < 22:
+            culture = "🌆 Relaxation + scrolling endlessly."
+        else:
+            culture = "🌙 Late night thoughts you didn't ask for."
+
+    # -------- UTC FORMAT -------- #
+    utc_offset = now.strftime('%z')
+    utc_offset = f"UTC{utc_offset[:-2]}:{utc_offset[-2:]}" if utc_offset else "UTC"
+
+    # -------- CLEAN EMBED -------- #
+    embed = discord.Embed(
+        description=(
+            f"**Cultural Time Context — {timezone}**\n\n"
+            f"**Current Time**\n"
+            f"{now.strftime('%I:%M %p')} ({utc_offset})\n"
+            f"{now.strftime('%A, %d %B %Y')}\n\n"
+            f"**What's Happening Now**\n"
+            f"{culture}\n\n"
+            f"*Cultural notes are generalised — don’t take it personally 😭*"
+        ),
+        color=ctx.author.color if ctx.author.color != discord.Color.default() else 0x2b2d31
+    )
+
+    await ctx.reply(embed=embed)
+    # ---------------- TIME COMPARE (USER BASED) ---------------- #
+@time_cmd.command(name="compare")
+async def time_compare(ctx, member: discord.Member = None):
+
+    member = member or ctx.author
+
+    # check both users have timezone
+    if str(ctx.author.id) not in times:
+        return await ctx.reply("❌ You haven't set your timezone. Use `.time set`")
+
+    if str(member.id) not in times:
+        return await ctx.reply(f"❌ {member.name} hasn't set their timezone.")
+
+    tz1 = pytz.timezone(times[str(ctx.author.id)])
+    tz2 = pytz.timezone(times[str(member.id)])
+
+    now1 = datetime.datetime.now(tz1)
+    now2 = datetime.datetime.now(tz2)
+
+    # format UTC
+    def format_utc(dt):
+        offset = dt.strftime('%z')
+        return f"UTC {offset[:3]}:{offset[3:]}" if offset else "UTC"
+
+    # time difference
+    diff = int((now1.utcoffset() - now2.utcoffset()).total_seconds() / 3600)
+
+    if diff == 0:
+        relation = "⇅ same time as you"
+    elif diff > 0:
+        relation = f"↑ {abs(diff)}h ahead of you"
+    else:
+        relation = f"↓ {abs(diff)}h behind you"
+
+    embed = discord.Embed(
+        description=(
+            f"**Timezone Comparison**\n\n"
+
+            f"**{ctx.author.display_name} (you)**\n"
+            f"{now1.strftime('%H:%M')} ({format_utc(now1)})\n"
+            f"{times[str(ctx.author.id)]}\n\n"
+
+            f"**{member.display_name}**\n"
+            f"{now2.strftime('%H:%M')} ({format_utc(now2)})\n"
+            f"{times[str(member.id)]}\n"
+            f"{relation}"
+        ),
+        color=ctx.author.color if ctx.author.color != discord.Color.default() else 0x2b2d31
+    )
+
+    await ctx.reply(embed=embed)
+
 # ---------------- HELP ----------------
 
 @bot.hybrid_command(name="help")
@@ -381,6 +583,8 @@ async def help_command(ctx):
 `.serverinfo` - View the server info
 `.memberinfo` - View info about members
 `.roleinfo` - View info about specific role
+`.time culture` - View time culture of a region
+`.time compare` - Compare time between to regions
 """,
         inline=False
     )
@@ -390,6 +594,8 @@ async def help_command(ctx):
         value="""
 `.8ball <question>` - Ask some questions
 `.ship @user @user` - Create some couples
+`.choose` - Seek consultation from sakina
+`.howhorny` - You've been a bad boy
 """,
         inline=False
     )
@@ -718,5 +924,37 @@ async def ev(ctx, action: str):
         await ctx.message.delete()
     except:
         pass
+# ---------------- HOWHORNY ---------------- #
+@bot.hybrid_command(name="howhorny")
+async def howhorny(ctx, member: discord.Member = None):
+    member = member or ctx.author
 
+    percent = random.randint(0, 100)
+
+    # funny messages
+    if percent >= 90:
+        msg = "💀 Down horrendous"
+    elif percent >= 70:
+        msg = "😏 Chill bro..."
+    elif percent >= 40:
+        msg = "🙂 Slightly suspicious"
+    else:
+        msg = "😇 Innocent soul"
+
+    embed = discord.Embed(
+        description=(
+            f"**{member.mention} is {percent}% horny**\n\n"
+            f"{msg}"
+        ),
+        color=member.color if member.color != discord.Color.default() else 0x2b2d31
+    )
+
+    embed.set_author(
+        name=str(ctx.author),
+        icon_url=ctx.author.display_avatar.url
+    )
+
+    embed.set_thumbnail(url=member.display_avatar.url)
+
+    await ctx.reply(embed=embed)
 bot.run(TOKEN)
