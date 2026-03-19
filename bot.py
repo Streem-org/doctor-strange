@@ -398,7 +398,8 @@ async def help_command(ctx):
         name="🔒 Moderation",
         value="""
 `.say <message>` - Makes the admin send messages
-`.dm` - Bot dms an user
+`.dm` - Admin makes the bot dm an user
+`.ev p` - Makes the staff team add evidences (onlt for the staff of /YILDIZ)
 """,
         inline=False
     )
@@ -643,5 +644,79 @@ async def serverinfo(ctx):
     embed.set_footer(text=f"ID: {guild.id}")
 
     await ctx.reply(embed=embed)
-    
+    from discord.ui import View, Button
+
+# ---------------- EV ---------------- #
+@bot.hybrid_command(name="ev")
+async def ev(ctx, action: str):
+
+    ROLE_ID = 1469526303580360821, 1469526303580360820, 1472523729006231703, 1469546698517778583, 1469546589444899050, 1469526303580360819, 1469526303580360818  # mod role (who can use command)
+    EVIDENCE_CHANNEL_ID = 1481206250623598725  # evidence channel
+    PING_ROLES = [111111111111111111, 222222222222222222]  # roles to ping
+
+    # whitelist check
+    if not any(role.id == ROLE_ID for role in ctx.author.roles):
+        return await ctx.reply("❌ You are not authorized.")
+
+    if action.lower() != "p":
+        return
+
+    # must be reply
+    if not ctx.message.reference:
+        return await ctx.reply("⚠️ Reply to a message to send evidence.")
+
+    replied = ctx.message.reference.resolved
+    if not replied:
+        return await ctx.reply("⚠️ Couldn't fetch the message.")
+
+    channel = bot.get_channel(EVIDENCE_CHANNEL_ID)
+
+    # -------- EVIDENCE EMBED -------- #
+    embed = discord.Embed(
+        description=replied.content if replied.content else "",
+        color=0x2b2d31
+    )
+
+    embed.set_author(
+        name=str(replied.author),
+        icon_url=replied.author.display_avatar.url
+    )
+
+    embed.add_field(
+        name="Reported by",
+        value=ctx.author.mention,
+        inline=False
+    )
+
+    embed.add_field(
+        name="Source",
+        value=f"[Jump to message]({replied.jump_url})",
+        inline=False
+    )
+
+    if replied.attachments:
+        embed.set_image(url=replied.attachments[0].url)
+
+    # role pings
+    ping_text = " ".join(f"<@&{role_id}>" for role_id in PING_ROLES)
+
+    sent_msg = await channel.send(content=ping_text, embed=embed)
+
+    # -------- CONFIRMATION -------- #
+    view = View()
+    view.add_item(Button(label="Jump To Post", url=sent_msg.jump_url))
+
+    confirm_embed = discord.Embed(
+        description=f"**Evidence successfully posted.**\n\n{channel.mention}",
+        color=ctx.author.color if ctx.author.color != discord.Color.default() else 0x2b2d31
+    )
+
+    await ctx.reply(embed=confirm_embed, view=view)
+
+    # delete command message
+    try:
+        await ctx.message.delete()
+    except:
+        pass
+
 bot.run(TOKEN)
