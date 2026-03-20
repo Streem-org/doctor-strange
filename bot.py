@@ -562,6 +562,79 @@ async def time_compare(ctx, member: discord.Member = None):
     )
 
     await ctx.reply(embed=embed)
+    # ---------------- HELP UI ---------------- #
+
+class HelpSelect(discord.ui.Select):
+    def __init__(self):
+        options = [
+            discord.SelectOption(label="Utility", emoji="🛠️"),
+            discord.SelectOption(label="Fun", emoji="🎮"),
+            discord.SelectOption(label="Moderation", emoji="🔒"),
+        ]
+
+        super().__init__(
+            placeholder="Select a category...",
+            min_values=1,
+            max_values=1,
+            options=options
+        )
+
+    async def callback(self, interaction: discord.Interaction):
+        value = self.values[0]
+
+        color = interaction.user.color if interaction.user.color != discord.Color.default() else 0x2b2d31
+
+        if value == "Utility":
+            embed = discord.Embed(
+                title="🛠️ Utility Commands",
+                description="""
+`.avatar` – View avatar  
+`.uptime` – Bot uptime  
+`.time` – Check time  
+`.time set` – Set timezone  
+`.time culture` – Cultural time  
+`.time compare` – Compare timezones  
+`.serverinfo` – Server info  
+`.memberinfo` – Member info  
+`.roleinfo` – Role info  
+`.convert` – Currency convert  
+""",
+                color=color
+            )
+
+        elif value == "Fun":
+            embed = discord.Embed(
+                title="🎮 Fun Commands",
+                description="""
+`.8ball` – Ask questions  
+`.ship` – Ship users  
+`.choose` – Choose randomly  
+`.howhorny` – % horny 💀  
+""",
+                color=color
+            )
+
+        elif value == "Moderation":
+            embed = discord.Embed(
+                title="🔒 Moderation Commands",
+                description="""
+`.say` – Send message  
+`.dm` – DM user  
+`.ev p` – Send evidence  
+`.blacklist` – Blacklist user  
+`.unblacklist` – Remove blacklist  
+`.reboot` – Restart bot  
+""",
+                color=color
+            )
+
+        await interaction.response.edit_message(embed=embed)
+
+
+class HelpView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=120)
+        self.add_item(HelpSelect())
 
 # ---------------- HELP ----------------
 
@@ -957,4 +1030,166 @@ async def howhorny(ctx, member: discord.Member = None):
     embed.set_thumbnail(url=member.display_avatar.url)
 
     await ctx.reply(embed=embed)
+
+    # ---------------- SHUTDOWN ---------------- #
+@bot.hybrid_command(name="shutdown")
+async def shutdown(ctx):
+
+    if ctx.author.id != 1378768035187527795:  # your ID
+        return await ctx.reply("❌ You cannot use this command.")
+
+    color = ctx.author.color if ctx.author.color != discord.Color.default() else 0x2b2d31
+
+    embed = discord.Embed(
+        title="🛑 Shutting Down",
+        description="The bot is now going offline...",
+        color=color
+    )
+
+    embed.set_footer(
+        text=f"Shutdown requested by {ctx.author}",
+        icon_url=ctx.author.display_avatar.url
+    )
+
+    await ctx.reply(embed=embed)
+
+    await bot.close()
+
+    # ---------------- UPDATES COMMAND ---------------- #
+
+@bot.hybrid_command(name="updates")
+async def updates(ctx):
+
+    color = ctx.author.color if ctx.author.color != discord.Color.default() else 0x2b2d31
+
+    embed = discord.Embed(
+        title="🆕 Latest Updates",
+        description="Here are the newest features added to the bot 🚀",
+        color=color
+    )
+
+    embed.add_field(
+        name="⚡ Version 2.0",
+        value="""
+🆕 Interactive Help Menu (Dropdown UI)  
+🆕 `.time culture` (fun cultural system 🌍)  
+🆕 `.time compare` (compare timezones)  
+🆕 `.convert` (advanced currency converter 💱)  
+🆕 Improved AFK system (better UI + tracking)  
+🆕 Evidence system `.ev p`  
+""",
+        inline=False
+    )
+
+    embed.add_field(
+        name="✨ Improvements",
+        value="""
+✔ Role-based embed colors  
+✔ Cleaner UI across commands  
+✔ Better uptime system  
+✔ More stable autoreactions  
+""",
+        inline=False
+    )
+
+    embed.set_footer(
+        text=f"Requested by {ctx.author}",
+        icon_url=ctx.author.display_avatar.url
+    )
+
+    await ctx.send(embed=embed)
+    OWNER_ID = 1378768035187527795  # your ID
+LOG_CHANNEL_ID = 1484472574690852985 # optional (server log channel)
+
+
+    # ---------------- ADVANCED CONVERT ---------------- #
+@bot.hybrid_command(name="convert")
+async def convert(ctx, amount: str, to_currency: str = "USD"):
+
+    symbol_map = {
+        "$": "USD",
+        "₹": "INR",
+        "€": "EUR",
+        "£": "GBP",
+        "¥": "JPY",
+        "₩": "KRW",
+        "₽": "RUB",
+        "₺": "TRY",
+        "₫": "VND",
+        "₦": "NGN",
+        "AED": "AED"
+    }
+
+    amount = amount.strip()
+
+    # -------- AUTO DETECT -------- #
+    from_currency = None
+
+    for sym, code in symbol_map.items():
+        if amount.startswith(sym):
+            from_currency = code
+            amount = amount.replace(sym, "")
+            break
+
+    # if no symbol → assume format: "100 INR"
+    if not from_currency:
+        parts = amount.split()
+
+        if len(parts) == 2:
+            amount, from_currency = parts
+            from_currency = from_currency.upper()
+        else:
+            return await ctx.reply("❌ Format: `.convert 100 INR USD` or `.convert $100 EUR`")
+
+    try:
+        amount = float(amount)
+    except:
+        return await ctx.reply("❌ Invalid amount.")
+
+    to_currency = to_currency.upper()
+
+    try:
+        url = f"https://api.exchangerate-api.com/v4/latest/{from_currency}"
+        res = requests.get(url).json()
+
+        if "rates" not in res or to_currency not in res["rates"]:
+            return await ctx.reply("❌ Invalid currency code.")
+
+        rate = res["rates"][to_currency]
+        converted = amount * rate
+
+    except:
+        return await ctx.reply("❌ API error. Try again later.")
+
+    # -------- EMBED -------- #
+    embed = discord.Embed(
+        title="💱 Currency Conversion",
+        color=ctx.author.color if ctx.author.color != discord.Color.default() else 0x2b2d31
+    )
+
+    embed.add_field(
+        name="From",
+        value=f"{amount:.2f} {from_currency}",
+        inline=True
+    )
+
+    embed.add_field(
+        name="To",
+        value=f"{converted:.2f} {to_currency}",
+        inline=True
+    )
+
+    embed.add_field(
+        name="Rate",
+        value=f"1 {from_currency} = {rate:.4f} {to_currency}",
+        inline=False
+    )
+
+    embed.set_footer(
+        text=f"Requested by {ctx.author}",
+        icon_url=ctx.author.display_avatar.url
+    )
+
+    await ctx.reply(embed=embed)
+
 bot.run(TOKEN)
