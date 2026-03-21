@@ -52,10 +52,6 @@ afk_mentions = {}
 
 start_time = time.time()
 last_reboot = time.time()
-ghost_pings =[]
-
-command_usage = {}
-
 
 def format_time(seconds):
     days = int(seconds // 86400)
@@ -192,17 +188,6 @@ async def on_message(message):
             except:
                 pass
 
-    await bot.process_commands(message)
-
-    if message.content.startswith("."):
-
-     user_id = message.author.id
-    now = time.time()
-
-    if user_id not in command_usage:
-        command_usage[user_id] = []
-
-    command_usage[user_id].append(now)
 
 # ---------------- AFK COMMAND ---------------- #
 
@@ -1312,57 +1297,6 @@ async def botinfo(ctx):
     )
 
     await ctx.send(embed=embed)
-
-    # ----------------GHOST PINGS---------------- #
-    
-
-@bot.event
-async def on_message_delete(message):
-
-    if message.author.bot:
-        return
-
-    if message.mentions:
-
-        ghost_pings.append({
-            "author": str(message.author),
-            "author_id": message.author.id,
-            "content": message.content,
-            "mentions": [user.mention for user in message.mentions],
-            "time": int(time.time())
-        })
-
-
-@bot.hybrid_command(name="cmd")
-async def cmd(ctx, member: discord.Member = None):
-
-    member = member or ctx.author
-    user_id = member.id
-    now = time.time()
-
-    if user_id not in command_usage:
-        return await ctx.send("✅ No command activity detected.")
-
-    # last 5 seconds check
-    recent = [t for t in command_usage[user_id] if now - t < 5]
-
-    # 🚨 SPAM DETECTED
-    if len(recent) >= 5:
-
-        embed = discord.Embed(color=0x2b2d31)
-        embed.set_image(
-            url="https://cdn.discordapp.com/attachments/1483131879740674281/1484776548862132244/image.png?ex=69bf756b&is=69be23eb&hm=3bb593ee002aa12ba54138debbed868b6ee5b4c4ee1571af55673e3ef355af54&"
-        )
-
-        await ctx.send(embed=embed)
-
-    # ✅ SAFE
-    else:
-        await ctx.send(
-            f"✅ {member.mention} is chilling.\n"
-            f"({len(recent)} commands in last 5s)"
-        )
-    
 
 # ---------------- RUN ---------------- #
 bot.run(TOKEN)
