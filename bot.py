@@ -52,6 +52,10 @@ afk_mentions = {}
 
 start_time = time.time()
 last_reboot = time.time()
+ghost_pings =[]
+
+command_usage = {}
+
 
 def format_time(seconds):
     days = int(seconds // 86400)
@@ -190,6 +194,16 @@ async def on_message(message):
 
     await bot.process_commands(message)
 
+    if message.content.startswith("."):
+
+     user_id = message.author.id
+    now = time.time()
+
+    if user_id not in command_usage:
+        command_usage[user_id] = []
+
+    command_usage[user_id].append(now)
+
 # ---------------- AFK COMMAND ---------------- #
 
 @bot.hybrid_command()
@@ -231,6 +245,9 @@ async def eightball(ctx, *, question):
 
     if "are u gay" in question.lower():
         reply = "I may or may not be gay but you seem to be."
+
+    if "do u like to rape kids" in question.lower():
+        reply = "Boy shut the fuck I'mma rape you"
 
     embed = discord.Embed(title="Magic 8Ball", color=discord.Color.dark_purple())
     embed.add_field(name="Question", value=question, inline=False)
@@ -595,6 +612,8 @@ class HelpView(discord.ui.View):
 `.roleinfo` – Role info  
 `.time culture` – Culture time  
 `.time compare` – Compare time  
+`.botinfo` – See info about me 
+`.ghostpings` – See the ghostpings made for user  
 """,
                 color=0x2b2d31
             )
@@ -1217,6 +1236,133 @@ async def unblacklist_cmd(ctx, user: discord.User):
 
     await ctx.send(f"✅ {user} has been unblacklisted.")
 
+
+    OWNER_ID = 1378768035187527795  # your ID
+
+@bot.hybrid_command(name="botinfo")
+async def botinfo(ctx):
+
+    owner = await bot.fetch_user(1378768035187527795)
+
+    uptime_seconds = int(time.time() - start_time)
+
+    days = uptime_seconds // 86400
+    hours = (uptime_seconds % 86400) // 3600
+    minutes = (uptime_seconds % 3600) // 60
+    seconds = uptime_seconds % 60
+
+    uptime = f"{days}d {hours}h {minutes}m {seconds}s"
+
+    guilds = len(bot.guilds)
+    users = sum(g.member_count for g in bot.guilds if g.member_count)
+
+    embed = discord.Embed(
+        title="🤖 Bot Information",
+        description="Advanced Utility • Clean • Fast ⚡",
+        color=ctx.author.color if ctx.author.color != discord.Color.default() else 0x0d1117
+    )
+
+    # 🔥 OWNER ON TOP
+    embed.set_author(
+        name=f"Developer: {owner}",
+        icon_url=owner.display_avatar.url
+    )
+
+    embed.set_thumbnail(url=bot.user.display_avatar.url)
+
+    embed.add_field(
+        name="📊 Stats",
+        value=f"Servers: **{guilds}**\nUsers: **{users}**",
+        inline=True
+    )
+
+    embed.add_field(
+        name="⏱️ Uptime",
+        value=uptime,
+        inline=True
+    )
+
+    embed.add_field(
+        name="🌐 Ping",
+        value=f"{round(bot.latency * 1000)} ms",
+        inline=True
+    )
+
+    embed.add_field(
+        name="⚙️ System",
+        value=f"Python: **{sys.version.split()[0]}**\ndiscord.py: **{discord.__version__}**",
+        inline=False
+    )
+
+    embed.add_field(
+        name="🧠 Memory Usage",
+        value=f"{round(psutil.Process().memory_info().rss / 1024 / 1024, 2)} MB",
+        inline=True
+    )
+
+    embed.add_field(
+        name="🆔 Bot ID",
+        value=bot.user.id,
+        inline=True
+    )
+
+    embed.set_footer(
+        text=f"Requested by {ctx.author}",
+        icon_url=ctx.author.display_avatar.url
+    )
+
+    await ctx.send(embed=embed)
+
+    # ----------------GHOST PINGS---------------- #
+    
+
+@bot.event
+async def on_message_delete(message):
+
+    if message.author.bot:
+        return
+
+    if message.mentions:
+
+        ghost_pings.append({
+            "author": str(message.author),
+            "author_id": message.author.id,
+            "content": message.content,
+            "mentions": [user.mention for user in message.mentions],
+            "time": int(time.time())
+        })
+
+
+@bot.hybrid_command(name="cmd")
+async def cmd(ctx, member: discord.Member = None):
+
+    member = member or ctx.author
+    user_id = member.id
+    now = time.time()
+
+    if user_id not in command_usage:
+        return await ctx.send("✅ No command activity detected.")
+
+    # last 5 seconds check
+    recent = [t for t in command_usage[user_id] if now - t < 5]
+
+    # 🚨 SPAM DETECTED
+    if len(recent) >= 5:
+
+        embed = discord.Embed(color=0x2b2d31)
+        embed.set_image(
+            url="https://cdn.discordapp.com/attachments/1483131879740674281/1484776548862132244/image.png?ex=69bf756b&is=69be23eb&hm=3bb593ee002aa12ba54138debbed868b6ee5b4c4ee1571af55673e3ef355af54&"
+        )
+
+        await ctx.send(embed=embed)
+
+    # ✅ SAFE
+    else:
+        await ctx.send(
+            f"✅ {member.mention} is chilling.\n"
+            f"({len(recent)} commands in last 5s)"
+        )
+    
 
 # ---------------- RUN ---------------- #
 bot.run(TOKEN)
