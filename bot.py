@@ -130,18 +130,21 @@ class AFKReturnView(View):
 
 @bot.event
 async def on_message(message):
+
+    # ❌ ignore bots
     if message.author.bot:
         return
-    
+
+    # 🚫 blacklist check
     if str(message.author.id) in blacklist:
         return
 
-    # WEEKLY TRACK
+    # 📊 WEEKLY TRACK
     weekly_messages[message.author.id] += 1
     weekly_data[str(message.author.id)] = weekly_messages[message.author.id]
     save_json(WEEKLY_FILE, weekly_data)
 
-    # AFK REMOVE
+    # 😴 AFK REMOVE
     if message.author.id in afk_users:
         now = time.time()
 
@@ -159,7 +162,7 @@ async def on_message(message):
             view = AFKReturnView(mentions)
             await message.channel.send(embed=embed, view=view)
 
-    # AFK MENTION
+    # 🔔 AFK MENTION
     for user in message.mentions:
         if user.id in afk_users and user != message.author:
             data = afk_users[user.id]
@@ -180,7 +183,7 @@ async def on_message(message):
             embed.set_thumbnail(url=user.display_avatar.url)
             await message.channel.send(embed=embed)
 
-    # AUTOREACTION
+    # 🤖 AUTOREACTION
     for phrase, emoji in autoreactions.items():
         if phrase in message.content.lower():
             try:
@@ -188,7 +191,18 @@ async def on_message(message):
             except:
                 pass
 
+    # ⚡ COMMAND TRACKING (.cmd system)
+    if message.content.startswith("."):
+        user_id = message.author.id
+        now = time.time()
 
+        if user_id not in command_usage:
+            command_usage[user_id] = []
+
+        command_usage[user_id].append(now)
+
+    # ✅ VERY IMPORTANT (DO NOT REMOVE)
+    await bot.process_commands(message)
 # ---------------- AFK COMMAND ---------------- #
 
 @bot.hybrid_command()
