@@ -232,6 +232,9 @@ async def eightball(ctx, *, question):
     if "are u gay" in question.lower():
         reply = "I may or may not be gay but you seem to be."
 
+    if "do u like to rape kids" in question.lower():
+        reply = "Boy I'mma rape you first."
+
     embed = discord.Embed(title="Magic 8Ball", color=discord.Color.dark_purple())
     embed.add_field(name="Question", value=question, inline=False)
     embed.add_field(name="Answer", value=reply, inline=False)
@@ -239,16 +242,19 @@ async def eightball(ctx, *, question):
     await ctx.send(embed=embed)
 
 # ---------------- SAY ----------------
+WHITELIST = [1378768035187527795, 1336751190506995825]  # add more IDs if needed
 
 @bot.hybrid_command(name="say")
-@commands.has_permissions(manage_messages=True)
 async def say(ctx, *, message: str):
+    if ctx.author.id not in WHITELIST:
+        return await ctx.send("❌ You are not allowed to use this command.", ephemeral=True)
+
     try:
         await ctx.message.delete()
     except:
         pass
-    await ctx.send(message)
 
+    await ctx.send(message)
 # ---------------- UPTIME ----------------
 @bot.command()
 async def uptime(ctx):
@@ -891,8 +897,8 @@ async def serverinfo(ctx):
 @bot.hybrid_command(name="ev")
 async def ev(ctx, action: str):
 
-    ROLE_ID = 1469526303580360821, 1469526303580360820, 1472523729006231703, 1469546698517778583, 1469546589444899050, 1469526303580360819, 1469526303580360818  # mod role (who can use command)
-    EVIDENCE_CHANNEL_ID = 1481206250623598725  # evidence channel
+    ROLE_ID = [1469526303580360821, 1469526303580360820, 1472523729006231703, 1469546698517778583, 1469546589444899050, 1469526303580360819, 1469526303580360818]  # mod role (who can use command)
+    EVIDENCE_CHANNEL_ID = [1481206250623598725]  # evidence channel
     PING_ROLES = [111111111111111111, 222222222222222222]  # roles to ping
 
     # whitelist check
@@ -1194,6 +1200,87 @@ async def imgify(ctx, url: str = None):
     embed.set_footer(
         text=f"Requested by {ctx.author}",
         icon_url=ctx.author.display_avatar.url
+    )
+
+    await ctx.send(embed=embed)
+
+
+    OWNER_ID = 1378768035187527795  # change if needed
+
+@bot.command(name="botinfo")
+async def botinfo(ctx):
+    owner = await bot.fetch_user(OWNER_ID)
+
+    # Uptime
+    now = datetime.datetime.utcnow()
+    uptime = now - start_time
+    days, seconds = uptime.days, uptime.seconds
+    hours = seconds // 3600
+    minutes = (seconds % 3600) // 60
+    seconds = seconds % 60
+
+    # Stats
+    latency = round(bot.latency * 1000)
+    guilds = len(bot.guilds)
+    users = sum(g.member_count for g in bot.guilds)
+
+    embed = discord.Embed(
+        title="🤖 Bot Information",
+        description="Advanced Discord utility bot with powerful systems.",
+        color=0x0d1117
+    )
+
+    embed.set_thumbnail(url=bot.user.avatar.url)
+
+    # Owner
+    embed.add_field(
+        name="👑 Owner",
+        value=f"{owner} \n`{OWNER_ID}`",
+        inline=True
+    )
+
+    # Stats
+    embed.add_field(
+        name="📊 Stats",
+        value=(
+            f"**Servers:** {guilds}\n"
+            f"**Users:** {users}\n"
+            f"**Latency:** {latency}ms"
+        ),
+        inline=True
+    )
+
+    # Uptime
+    embed.add_field(
+        name="⏳ Uptime",
+        value=f"{days}d {hours}h {minutes}m {seconds}s",
+        inline=False
+    )
+
+    # System (optional but clean)
+    embed.add_field(
+        name="⚙️ System",
+        value=(
+            f"**CPU:** {psutil.cpu_percent()}%\n"
+            f"**RAM:** {psutil.virtual_memory().percent}%"
+        ),
+        inline=True
+    )
+
+    # Exclusive features (YOU EDIT THIS 🔥)
+    embed.add_field(
+        name="✨ Exclusive Features",
+        value=(
+            "• Real Economy Convert\n"    
+            "• Advanced AutoReact\n"
+            "•Time culture"
+        ),
+        inline=False
+    )
+
+    embed.set_footer(
+        text=f"Requested by {ctx.author}",
+        icon_url=ctx.author.avatar.url
     )
 
     await ctx.send(embed=embed)
