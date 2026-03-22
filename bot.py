@@ -24,9 +24,9 @@ TIME_FILE = "times.json"
 WEEKLY_FILE = "weekly.json"
 BLACKLIST_FILE = "blacklist.json"
 AUTOREACT_FILE = "autoreactions.json"
-DM_LOG_CHANNEL_ID = 1484472574690852985
 
 # ---------------- FILE SYSTEM ---------------- #
+
 def load_json(file):
     try:
         with open(file, "r") as f:
@@ -38,11 +38,11 @@ def save_json(file, data):
     with open(file, "w") as f:
         json.dump(data, f, indent=4)
 
-blacklist = load_json(BLACKLIST_FILE) 
-
         
 
 times = load_json(TIME_FILE)
+weekly_data = load_json(WEEKLY_FILE)
+blacklisted_users = load_json(BLACKLIST_FILE)
 autoreactions = load_json(AUTOREACT_FILE)
 
 weekly_messages = defaultdict(int)
@@ -130,21 +130,18 @@ class AFKReturnView(View):
 
 @bot.event
 async def on_message(message):
-
-    # ❌ ignore bots
     if message.author.bot:
         return
 
-    # 🚫 blacklist check
-    if str(message.author.id) in blacklist:
+    if str(message.author.id) in blacklisted_users:
         return
 
-    # 📊 WEEKLY TRACK
+    # WEEKLY TRACK
     weekly_messages[message.author.id] += 1
     weekly_data[str(message.author.id)] = weekly_messages[message.author.id]
     save_json(WEEKLY_FILE, weekly_data)
 
-    # 😴 AFK REMOVE
+    # AFK REMOVE
     if message.author.id in afk_users:
         now = time.time()
 
@@ -162,7 +159,7 @@ async def on_message(message):
             view = AFKReturnView(mentions)
             await message.channel.send(embed=embed, view=view)
 
-    # 🔔 AFK MENTION
+    # AFK MENTION
     for user in message.mentions:
         if user.id in afk_users and user != message.author:
             data = afk_users[user.id]
@@ -183,7 +180,7 @@ async def on_message(message):
             embed.set_thumbnail(url=user.display_avatar.url)
             await message.channel.send(embed=embed)
 
-    # 🤖 AUTOREACTION
+    # AUTOREACTION
     for phrase, emoji in autoreactions.items():
         if phrase in message.content.lower():
             try:
@@ -191,18 +188,8 @@ async def on_message(message):
             except:
                 pass
 
-    # ⚡ COMMAND TRACKING (.cmd system)
-    if message.content.startswith("."):
-        user_id = message.author.id
-        now = time.time()
-
-        if user_id not in command_usage:
-            command_usage[user_id] = []
-
-        command_usage[user_id].append(now)
-
-    # ✅ VERY IMPORTANT (DO NOT REMOVE)
     await bot.process_commands(message)
+
 # ---------------- AFK COMMAND ---------------- #
 
 @bot.hybrid_command()
@@ -244,9 +231,6 @@ async def eightball(ctx, *, question):
 
     if "are u gay" in question.lower():
         reply = "I may or may not be gay but you seem to be."
-
-    if "do u like to rape kids" in question.lower():
-        reply = "Boy shut the fuck I'mma rape you"
 
     embed = discord.Embed(title="Magic 8Ball", color=discord.Color.dark_purple())
     embed.add_field(name="Question", value=question, inline=False)
@@ -611,8 +595,6 @@ class HelpView(discord.ui.View):
 `.roleinfo` – Role info  
 `.time culture` – Culture time  
 `.time compare` – Compare time  
-`.botinfo` – See info about me 
-`.ghostpings` – See the ghostpings made for user  
 """,
                 color=0x2b2d31
             )
@@ -1216,101 +1198,6 @@ async def imgify(ctx, url: str = None):
 
     await ctx.send(embed=embed)
 
-@bot.hybrid_command(name="blacklist")
-@commands.has_permissions(administrator=True)
-async def blacklist_cmd(ctx, user: discord.User):
-
-    blacklist[str(user.id)] = True
-    save_json(BLACKLIST_FILE, blacklist)
-
-    await ctx.send(f"🚫 {user} has been blacklisted.")
-
-
-@bot.hybrid_command(name="unblacklist")
-@commands.has_permissions(administrator=True)
-async def unblacklist_cmd(ctx, user: discord.User):
-
-    blacklist.pop(str(user.id), None)
-    save_json(BLACKLIST_FILE, blacklist)
-
-    await ctx.send(f"✅ {user} has been unblacklisted.")
-
-
-    OWNER_ID = 1378768035187527795  # your ID
-
-@bot.hybrid_command(name="botinfo")
-async def botinfo(ctx):
-
-    owner = await bot.fetch_user(1378768035187527795)
-
-    uptime_seconds = int(time.time() - start_time)
-
-    days = uptime_seconds // 86400
-    hours = (uptime_seconds % 86400) // 3600
-    minutes = (uptime_seconds % 3600) // 60
-    seconds = uptime_seconds % 60
-
-    uptime = f"{days}d {hours}h {minutes}m {seconds}s"
-
-    guilds = len(bot.guilds)
-    users = sum(g.member_count for g in bot.guilds if g.member_count)
-
-    embed = discord.Embed(
-        title="🤖 Bot Information",
-        description="Advanced Utility • Clean • Fast ⚡",
-        color=ctx.author.color if ctx.author.color != discord.Color.default() else 0x0d1117
-    )
-
-    # 🔥 OWNER ON TOP
-    embed.set_author(
-        name=f"Developer: {owner}",
-        icon_url=owner.display_avatar.url
-    )
-
-    embed.set_thumbnail(url=bot.user.display_avatar.url)
-
-    embed.add_field(
-        name="📊 Stats",
-        value=f"Servers: **{guilds}**\nUsers: **{users}**",
-        inline=True
-    )
-
-    embed.add_field(
-        name="⏱️ Uptime",
-        value=uptime,
-        inline=True
-    )
-
-    embed.add_field(
-        name="🌐 Ping",
-        value=f"{round(bot.latency * 1000)} ms",
-        inline=True
-    )
-
-    embed.add_field(
-        name="⚙️ System",
-        value=f"Python: **{sys.version.split()[0]}**\ndiscord.py: **{discord.__version__}**",
-        inline=False
-    )
-
-    embed.add_field(
-        name="🧠 Memory Usage",
-        value=f"{round(psutil.Process().memory_info().rss / 1024 / 1024, 2)} MB",
-        inline=True
-    )
-
-    embed.add_field(
-        name="🆔 Bot ID",
-        value=bot.user.id,
-        inline=True
-    )
-
-    embed.set_footer(
-        text=f"Requested by {ctx.author}",
-        icon_url=ctx.author.display_avatar.url
-    )
-
-    await ctx.send(embed=embed)
 
 # ---------------- RUN ---------------- #
 bot.run(TOKEN)
